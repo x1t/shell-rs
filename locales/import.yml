@@ -1,0 +1,113 @@
+_version: 2
+
+# 导入: hosts and snippets from Xshell (设置 › 应用 › 导入).
+
+import.xshell.title:
+  zh-CN: 从 Xshell 导入
+  en: Import from Xshell
+import.xshell.folder:
+  zh-CN: Xshell 数据文件夹
+  en: Xshell data folder
+import.xshell.browse:
+  zh-CN: 选择…
+  en: Choose…
+import.xshell.choose:
+  zh-CN: 选择 Xshell 数据文件夹
+  en: Choose the Xshell data folder
+import.xshell.not_found:
+  zh-CN: 没有找到 Xshell 的数据文件夹，请选择（通常是 文档\NetSarang Computer\8\Xshell）。
+  en: Couldn’t find the Xshell data folder. Choose it (usually Documents\NetSarang Computer\8\Xshell).
+import.xshell.reading:
+  zh-CN: 正在读取…
+  en: Loading…
+import.xshell.not_xshell:
+  zh-CN: 这个文件夹里没有 Xshell 的会话和快速命令。
+  en: This folder has no Xshell sessions or quick commands.
+import.xshell.hosts:
+  zh-CN: 主机（%{count} 台）
+  en: Hosts (%{count})
+import.xshell.snippets:
+  zh-CN: 快速命令（%{count} 条），导入为命令片段
+  en: Quick commands (%{count}), as snippets
+import.xshell.description:
+  zh-CN: 子文件夹导入为分组，每个快速命令集导入为一个片段分类。已有的主机和片段会跳过。保存的密码存入系统钥匙串，只有保存它的 Windows 用户才能解开。
+  en: Subfolders become groups, and each quick command set becomes a snippet category. Hosts and snippets that are already here are skipped. Saved passwords go to the system keychain; only the Windows user who saved them can open them.
+import.xshell.import:
+  zh-CN: 导入
+  en: Import
+import.xshell.choose_folder:
+  zh-CN: 请选择 Xshell 数据文件夹
+  en: Choose the Xshell data folder
+import.xshell.still_reading:
+  zh-CN: 还在读取 Xshell 数据文件夹，请稍候
+  en: Still loading the Xshell data folder
+import.xshell.nothing:
+  zh-CN: 没有要导入的内容
+  en: There’s nothing to import
+
+import.report.title:
+  zh-CN: 已从 Xshell 导入
+  en: Imported from Xshell
+import.report.nothing_new:
+  zh-CN: 没有新的主机或片段。
+  en: There were no new hosts or snippets.
+import.report.hosts.one:
+  en: Imported %{count} host.
+import.report.hosts.other:
+  zh-CN: 导入了 %{count} 台主机。
+  en: Imported %{count} hosts.
+import.report.duplicate_hosts.one:
+  en: Skipped %{count} host that’s already here.
+import.report.duplicate_hosts.other:
+  zh-CN: "%{count} 台主机已存在，已跳过。"
+  en: Skipped %{count} hosts that are already here.
+import.report.passwords.one:
+  en: Saved %{count} password in the system keychain.
+import.report.passwords.other:
+  zh-CN: "%{count} 个密码已存入系统钥匙串。"
+  en: Saved %{count} passwords in the system keychain.
+import.report.other_protocols.one:
+  en: Skipped %{count} session that isn’t SSH.
+import.report.other_protocols.other:
+  zh-CN: 跳过了 %{count} 个不是 SSH 的会话。
+  en: Skipped %{count} sessions that aren’t SSH.
+import.report.snippets.one:
+  en: Imported %{count} snippet.
+import.report.snippets.other:
+  zh-CN: 导入了 %{count} 个命令片段。
+  en: Imported %{count} snippets.
+import.report.duplicate_snippets.one:
+  en: Skipped %{count} snippet that’s already here.
+import.report.duplicate_snippets.other:
+  zh-CN: "%{count} 个片段已存在，已跳过。"
+  en: Skipped %{count} snippets that are already here.
+import.report.not_text.one:
+  en: Skipped %{count} quick command that runs a script rather than sending text.
+import.report.not_text.other:
+  zh-CN: 跳过了 %{count} 个不是发送文本的快速命令。
+  en: Skipped %{count} quick commands that run a script rather than sending text.
+import.report.key_logins.one:
+  en: "%{names} logged in with a key in Xshell and now uses “No password”: it tries the SSH agent and the keys in ~/.ssh. To use another private key, create a key credential."
+import.report.key_logins.other:
+  zh-CN: "%{names} 在 Xshell 里用密钥登录，已设成「无密码」：会依次试 SSH Agent 和 ~/.ssh 里的私钥，要用别的私钥请建密钥凭据。"
+  en: "%{names} logged in with keys in Xshell and now use “No password”: they try the SSH agent and the keys in ~/.ssh. To use another private key, create a key credential."
+import.report.unreadable_passwords.one:
+  en: Couldn’t open the saved password of %{names}; it’s asked for when connecting.
+import.report.unreadable_passwords.other:
+  zh-CN: "%{names} 保存的密码没能解开，连接时会询问。"
+  en: Couldn’t open the saved passwords of %{names}; they’re asked for when connecting.
+import.report.dropped_proxies.one:
+  en: ShellRS can’t use the proxy of %{names}, so it connects directly.
+import.report.dropped_proxies.other:
+  zh-CN: ShellRS 不支持 %{names} 的代理，已改成直接连接。
+  en: ShellRS can’t use the proxies of %{names}, so they connect directly.
+import.report.session_variables.one:
+  en: "%{names} uses Xshell’s session variables ($HOSTNAME, $USERNAME, $PATH), which ShellRS sends to the shell as they are."
+import.report.session_variables.other:
+  zh-CN: "%{names} 用到了 Xshell 的会话变量（$HOSTNAME、$USERNAME、$PATH），ShellRS 不替换，原样交给 shell。"
+  en: "%{names} use Xshell’s session variables ($HOSTNAME, $USERNAME, $PATH), which ShellRS sends to the shell as they are."
+import.report.unreadable_files.one:
+  en: "Couldn’t read %{names}."
+import.report.unreadable_files.other:
+  zh-CN: 读不了这些文件：%{names}。
+  en: "Couldn’t read %{names}."

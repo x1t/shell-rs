@@ -17,6 +17,7 @@ mod forward;
 mod history;
 mod host_dialog;
 mod host_tree;
+mod import;
 mod monitor;
 mod netstat;
 mod processes;

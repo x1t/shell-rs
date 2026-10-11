@@ -20,6 +20,7 @@ pub mod forward;
 pub mod history;
 pub mod host;
 pub mod i18n;
+pub mod import;
 pub mod monitor;
 pub mod netstat;
 pub mod processes;

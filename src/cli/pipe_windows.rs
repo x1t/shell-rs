@@ -162,6 +162,11 @@ pub(super) fn owned_by_current_user(pipe: &File) -> io::Result<bool> {
     Ok(owned)
 }
 
+/// The SID of the user this process runs as, such as `S-1-5-21-…`.
+pub(crate) fn current_user_sid() -> io::Result<String> {
+    CurrentUser::read()?.sid_string()
+}
+
 /// The user this process runs as.
 struct CurrentUser {
     /// A `TOKEN_USER` and the SID it points into; `usize`s so the struct is

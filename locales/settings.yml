@@ -182,6 +182,19 @@ settings.window.remember_position_description:
   zh-CN: 下次启动时把窗口放回上次所在的屏幕和位置；那块屏幕不在时放在主屏幕中间。
   en: The next launch puts the window back on the same screen and in the same place. If that screen is gone, it opens in the middle of the main screen.
 
+settings.import.title:
+  zh-CN: 导入
+  en: Import
+settings.import.xshell:
+  zh-CN: 从 Xshell 导入
+  en: Import from Xshell
+settings.import.xshell_description:
+  zh-CN: 导入 Xshell 的会话（含保存的密码）和快速命令。
+  en: Brings in Xshell’s sessions, with their saved passwords, and its quick commands.
+settings.import.xshell_button:
+  zh-CN: 导入…
+  en: Import…
+
 settings.cli.access:
   zh-CN: 访问控制
   en: Access

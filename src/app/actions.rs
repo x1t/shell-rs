@@ -158,6 +158,8 @@ gpui_kit::actions!(
         OpenChangelog,
         /// Open the ShellRS website.
         OpenWebsite,
+        /// Bring in Xshell's sessions and quick commands (设置 › 应用 › 导入).
+        ImportFromXshell,
     ]
 );
 

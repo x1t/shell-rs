@@ -43,6 +43,8 @@ pub(crate) use manage::{
     find_credential, find_host, find_saved_host, host_details, host_info, host_secrets,
     plan_credential, plan_host, with_saved_credential_secrets, with_saved_passwords,
 };
+#[cfg(windows)]
+pub(crate) use pipe_windows::current_user_sid;
 pub use protocol::{
     AuthChoice, CliError, CredentialDeleted, CredentialDetails, CredentialFields,
     CredentialKindChoice, ErrorCode, HostDeleted, HostDetails, HostFields, HostInfo, ProxyChoice,

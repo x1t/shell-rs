@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, VecDeque},
+    path::PathBuf,
     rc::Rc,
     sync::Arc,
     time::Duration,
@@ -29,13 +30,13 @@ use crate::app::{
     CopyAgentSkill, CopyHostAddress, CopyHostId, CopyTerminal, DeleteGroup, DeleteHost,
     DisconnectHost, DisconnectTerminal, DismissTerminalFind, DuplicateHost, EditHost,
     ExpandAllGroups, ExplorerAction, ExplorerCommand, ExplorerShortcut, FindInTerminal,
-    FindNextInTerminal, FindPreviousInTerminal, FocusSearch, InstallAgentSkill, InstallCliCommand,
-    MoveHostNode, NewChildGroup, NewGroup, NewHost, NewHostInGroup, NewLocalTerminal,
-    NewTemporaryConnection, OpenExplorer, OpenSettings, PasteTerminal, QuickConnect,
-    ReconnectTerminal, RefreshCliIntegration, RemoveAgentSkill, RemoveCliCommand, RenameExplorer,
-    RenameGroup, RenameTerminal, RestartLocalTerminal, SetFileSizeFormat, ToggleHiddenFiles,
-    ToggleHostPanel, ToggleTheme, ZoomIn, ZoomOut, ZoomReset, ZoomTerminalIn, ZoomTerminalOut,
-    ZoomTerminalReset,
+    FindNextInTerminal, FindPreviousInTerminal, FocusSearch, ImportFromXshell, InstallAgentSkill,
+    InstallCliCommand, MoveHostNode, NewChildGroup, NewGroup, NewHost, NewHostInGroup,
+    NewLocalTerminal, NewTemporaryConnection, OpenExplorer, OpenSettings, PasteTerminal,
+    QuickConnect, ReconnectTerminal, RefreshCliIntegration, RemoveAgentSkill, RemoveCliCommand,
+    RenameExplorer, RenameGroup, RenameTerminal, RestartLocalTerminal, SetFileSizeFormat,
+    ToggleHiddenFiles, ToggleHostPanel, ToggleTheme, ZoomIn, ZoomOut, ZoomReset, ZoomTerminalIn,
+    ZoomTerminalOut, ZoomTerminalReset,
 };
 use crate::cli::{CliIntegration, CliServer, IntegrationPaths, SshCliBackend};
 use crate::connection::{
@@ -57,6 +58,7 @@ use crate::host::{
     open_quick_connect_dialog, open_temporary_connection_dialog,
 };
 use crate::i18n::t;
+use crate::import::open_xshell_import_dialog;
 use crate::settings::{
     Appearance, SettingsPanel, SettingsPanelEvent, SettingsStore, SettingsStoreEvent,
     WindowSettings,
@@ -169,6 +171,9 @@ pub struct Workspace {
     /// they are there. No paths in UI tests, so nothing reaches the home
     /// directory unless a test hands it a temporary one.
     cli_integration: Entity<CliIntegration>,
+    /// The Xshell data folder 从 Xshell 导入 starts in. None in UI tests, so
+    /// they never read the user's documents unless they hand it one.
+    xshell_folder: Option<PathBuf>,
     /// Answers the `shellrs` command. Production only: UI tests never
     /// listen on the real socket.
     pub(super) cli_server: Option<CliServer>,
@@ -274,6 +279,8 @@ impl Workspace {
             ),
         }
         this.sync_cli_server(cx);
+        this.xshell_folder = crate::import::default_folder();
+
         this.remember_window(crate::app::window_state_path(), window, cx);
         let bundle = cx.app_path().ok();
         this.updater.update(cx, |updater, cx| {
@@ -537,6 +544,7 @@ impl Workspace {
             settings_tab: None,
             settings,
             cli_integration: cx.new(|_| CliIntegration::new(None)),
+            xshell_folder: None,
             cli_server: None,
             updater,
             analytics: None,
@@ -654,6 +662,11 @@ impl Workspace {
     /// Tests hand it a temporary home and bin directory.
     pub fn cli_integration(&self) -> &Entity<CliIntegration> {
         &self.cli_integration
+    }
+
+    /// Tests hand it a temporary Xshell data folder.
+    pub fn set_xshell_folder(&mut self, folder: Option<PathBuf>) {
+        self.xshell_folder = folder;
     }
 
     pub fn updater(&self) -> &Entity<Updater> {
@@ -2027,6 +2040,15 @@ impl Workspace {
         open_group_dialog(None, None, self.store.clone(), window, cx);
     }
 
+    fn on_import_from_xshell(
+        &mut self,
+        _: &ImportFromXshell,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        open_xshell_import_dialog(self.xshell_folder.clone(), self.store.clone(), window, cx);
+    }
+
     fn on_expand_all_groups(
         &mut self,
         _: &ExpandAllGroups,
@@ -2573,6 +2595,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::on_open_download_page))
             .on_action(cx.listener(Self::on_open_changelog))
             .on_action(cx.listener(Self::on_open_website))
+            .on_action(cx.listener(Self::on_import_from_xshell))
             .on_action(cx.listener(Self::on_copy_agent_skill))
             .on_action(cx.listener(Self::on_close_settings))
             .on_action(cx.listener(Self::on_close_active_tab))

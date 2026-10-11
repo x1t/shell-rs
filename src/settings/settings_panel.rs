@@ -22,8 +22,8 @@ use gpui_kit::*;
 
 use crate::app::{
     CatalogIcon, CenterTab, CheckForUpdates, CloseSettings, CopyAgentSkill, DownloadUpdate,
-    InstallAgentSkill, InstallCliCommand, OpenDownloadPage, OpenWebsite, RefreshCliIntegration,
-    RemoveAgentSkill, RemoveCliCommand, ShowUpdate,
+    ImportFromXshell, InstallAgentSkill, InstallCliCommand, OpenDownloadPage, OpenWebsite,
+    RefreshCliIntegration, RemoveAgentSkill, RemoveCliCommand, ShowUpdate,
 };
 use crate::cli::{AgentKind, BinaryStatus, CliIntegration, IntegrationStatus, SkillStatus};
 use crate::i18n::t;
@@ -563,7 +563,8 @@ fn shortcuts_groups(panel: &SettingsPanel, _: &App) -> Vec<SettingGroup> {
     shortcut_groups(&panel.shortcuts)
 }
 
-/// 应用 → 窗口: what the next launch restores of the main window.
+/// 应用 → 窗口: what the next launch restores of the main window; 导入:
+/// hosts and snippets from Xshell.
 fn application_groups(panel: &SettingsPanel, _: &App) -> Vec<SettingGroup> {
     let store = &panel.store;
     let switch = |read: fn(&WindowSettings) -> bool, write: fn(&mut WindowSettings, bool)| {
@@ -578,6 +579,9 @@ fn application_groups(panel: &SettingsPanel, _: &App) -> Vec<SettingGroup> {
         )
         .default_value(true)
     };
+    // Through the panel's focus: after a dialog closes nothing is focused,
+    // and an action dispatched from nothing reaches no workspace.
+    let focus = panel.focus_handle.clone();
     vec![
         SettingGroup::new()
             .title(t!("settings.window.title"))
@@ -599,6 +603,22 @@ fn application_groups(panel: &SettingsPanel, _: &App) -> Vec<SettingGroup> {
                 )
                 .description(t!("settings.window.remember_position_description")),
             ]),
+        SettingGroup::new()
+            .title(t!("settings.import.title"))
+            .items([SettingItem::new(
+                t!("settings.import.xshell"),
+                SettingField::render(move |options, _, _| {
+                    let focus = focus.clone();
+                    Button::new("import-xshell")
+                        .outline()
+                        .with_size(options.size())
+                        .label(t!("settings.import.xshell_button"))
+                        .on_click(move |_, window, cx| {
+                            focus.dispatch_action(&ImportFromXshell, window, cx)
+                        })
+                }),
+            )
+            .description(t!("settings.import.xshell_description"))]),
     ]
 }
 

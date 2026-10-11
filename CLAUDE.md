@@ -88,6 +88,12 @@ ShellRS（crate 与二进制都叫 `shellrs`）是 Xshell / WinSCP 式的 SSH �
 - **预览**：图片和 Markdown（不做 HTML），显示在快速查看式的大对话框里，不是标签。
   - 双击图片预览；Markdown 和 SVG 是文本，双击编辑，右键另有「预览」。
   - 图片默认适合窗口居中，可放大、缩小、看原图、滚动；比例只写百分比。
+- **从 Xshell 导入**：入口在「设置 › 应用 › 导入」，一个对话框勾选主机和快速命令。
+  - 会话的子文件夹变成分组；名称、地址、端口、用户都相同的主机跳过；片段只在同一分类里查重（同名同命令），每个命令集完整导入（用户定的，副本 `.qbl` 也照导）；重复导入不加东西。
+  - 密码按当前 Windows 用户解开（Xshell 7+ 的算法，用户核实过），解不开的留空、连接时询问；不支持 Xshell 主密码。
+  - Xshell 自己格式的用户密钥（NSSSH）不导入，那些主机设成「无密码」并在结果里列出。
+  - 代理 `TYPE` 2 是 SOCKS5（用户核实过）、3 是 HTTP，其余改直连并列出。
+  - 每个 `.qbl` 一个片段分类（文件名）。转义分两层：文件里 `\\` 是反斜杠、`\r\n` 是框里的换行；发送时按 Xshell 的规则（`\r` `\n` 回车、`\t` `\a` `\b`、`\\` `\$`、八进制），`\r` 紧跟换行只算一次回车，末尾回车变「点击时自动执行」。会话变量 `$HOSTNAME` 等不替换，只列出。
 
 ## 常用命令
 
@@ -146,6 +152,7 @@ cargo test -- --ignored                     # 会读写真实钥匙串的测试�
 - `cli/`：外部 CLI（`shellrs hosts/credentials/exec/upload/download/sync`，给 AI Agent 用）、套接字协议、应用里的服务端、主机和凭据改动的校验（`manage.rs`）、PATH 和 Agent skill 的安装。
 - `update/`：在线升级，包括清单、验签、下载、各平台安装器和 `Updater`。
 - `analytics/`：匿名使用统计。`model.rs` 是纯的计数、事件和发送时机（`Reporter`），`system.rs` 用 `os_info` 读系统名和版本，`client.rs` 是投递线程和工作区拿着的 `Analytics` 句柄；工作区的接线在 `workspace/analytics.rs`。
+- `import/`：从 Xshell 导入。`xshell.rs` 是读数据文件夹的纯逻辑，`xshell_crypt.rs` 解密码（SID 取自 `cli::current_user_sid`），`apply.rs` 写进 store 并给出 `ImportReport`，`import_dialog.rs` 是对话框和结果。默认文件夹由 `Workspace::new` 找，UI 测试用 `set_xshell_folder` 给临时目录。
 - `workspace/`：窗口壳。持有 store、`DockArea`、各类标签的注册表和**全部动作处理器**，按领域拆成多个文件（`forwards.rs`、`credentials.rs`、`links.rs`、`editors.rs`、`tools.rs`、`updates.rs`…）。另有标题栏、状态栏、左侧栏 `Sidebar`、右侧栏 `ToolSidebar`、开始页。
 - `shared/`：多个功能共用的展示片段（`ClosableTabTitle`、`HostMark`、`SegmentedControl`、`RowTooltips`、`confirm_danger`、`form_error_notification` 等）。
 
