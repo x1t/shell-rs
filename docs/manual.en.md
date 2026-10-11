@@ -124,7 +124,7 @@ The “Settings” button at the bottom of the sidebar, or ⌘, (Ctrl+, on Windo
   - **Proxies**: an Xshell proxy (`Common\Proxy`) that is SOCKS5 or HTTP becomes the host’s proxy, its password going to the keychain; SOCKS4 and other kinds, and proxies that can’t be found, connect directly instead and are listed.
   - **Quick commands → snippets**: each `.qbl` under `QuickButton Files` becomes a snippet category named after the file (a category of the same name is reused). What comes in is what Xshell sends: `\r`, `\n` and line breaks are Enter, `\t` a tab, `\a` the bell, `\b` backspace, `\\` and `\$` a literal `\` and `$`, and `\` with an octal number that character; a final Enter becomes “Run on click”. Buttons that run a script rather than send text are skipped; each command set comes in whole into its own category, and only a snippet with the same name and command in that category is skipped. Snippets using Xshell’s session variables (`$HOSTNAME`, `$USERNAME`, `$PATH`) are listed: ShellRS sends them to the remote shell as they are.
   - A result follows: what came in and what was skipped, and which hosts need a hand. **Not done yet: `.xts` export packages, Xshell’s master password, Xshell user keys, host keys, Xftp sessions.**
-- **About**: the “Updates” group, with the current version and checking for updates, the update channel and automatic updates (see “Download and updates”); “Send anonymous usage statistics” in the “Privacy” group, on by default (see “Privacy”); and “Website” in the “ShellRS” group, which opens shellrs.com in your browser.
+- **About**: the “Updates” group, with the current version and checking for updates, the update channel and automatic updates (see “Download and updates”); “Send anonymous usage statistics” in the “Privacy” group, on by default (see “Privacy”); and “Project page” in the “ShellRS” group, which opens the project on GitHub in your browser.
 
 ## External CLI
 
@@ -415,7 +415,7 @@ When a file name can’t be represented exactly, ShellRS reports an error. The r
 
 ## Download and updates
 
-Packages are on [GitHub Releases](https://github.com/since2006/shell-rs/releases):
+Packages are on [GitHub Releases](https://github.com/x1t/shell-rs/releases):
 
 | System | First install | Automatic updates |
 |---|---|---|
@@ -423,7 +423,7 @@ Packages are on [GitHub Releases](https://github.com/since2006/shell-rs/releases
 | Windows x64 | Setup program, which installs for the current user into `%LOCALAPPDATA%\Programs\ShellRS`, with no administrator rights needed | Yes |
 | Linux x64 | AppImage | Yes |
 
-ShellRS checks for a new version 30 seconds after it starts, then every 6 hours. When there is one, it downloads and verifies it in the background, and then a green update button appears at the top right of the title bar. Click it: “What’s new” opens the changelog on the website, and “Restart to update” switches to the new version and reopens. Restarting closes open connections and stops transfers (keeping their progress for resuming) and port forwards; the dialog lists exactly which.
+ShellRS checks for a new version 30 seconds after it starts, then every 6 hours. When there is one, it downloads and verifies it in the background, and then a green update button appears at the top right of the title bar. Click it: “What’s new” opens the changelog (CHANGELOG.md) on GitHub, and “Restart to update” switches to the new version and reopens. Restarting closes open connections and stops transfers (keeping their progress for resuming) and port forwards; the dialog lists exactly which.
 
 “Updates” in “Settings › About” has just three rows:
 

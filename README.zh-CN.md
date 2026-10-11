@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/since2006/shell-rs/releases"><img src="https://img.shields.io/github/v/release/since2006/shell-rs?include_prereleases&label=release" alt="Release"></a>
+  <a href="https://github.com/x1t/shell-rs/releases"><img src="https://img.shields.io/github/v/release/x1t/shell-rs?include_prereleases&label=release" alt="Release"></a>
   <a href="#许可证"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="Platform: macOS | Windows | Linux">
   <img src="https://img.shields.io/badge/rust-1.98-orange" alt="Rust 1.98">
@@ -115,7 +115,7 @@ ShellRS 把 Xshell 式的主机管理和多标签终端、WinSCP 式的双栏 SF
 
 ## 下载
 
-到官网 [shellrs.com/download](https://shellrs.com/download) 下载，页面会按你的系统给出对应的安装包；也可以到 GitHub [Releases](https://github.com/since2006/shell-rs/releases) 下载。Beta 版在 Releases 里标为 Pre-release，想提前用上新功能，可以在「设置 › 关于」里把更新渠道切到 Beta。
+到 GitHub [Releases](https://github.com/x1t/shell-rs/releases) 下载。Beta 版在 Releases 里标为 Pre-release，想提前用上新功能，可以在「设置 › 关于」里把更新渠道切到 Beta。
 
 | 系统 | 安装包 | 说明 |
 | --- | --- | --- |
@@ -155,7 +155,7 @@ shellrs sync <ID> ./dist /opt/app --delete         # 同步目录，没变的文
 需要先装 [rustup](https://rustup.rs)。仓库里的 `rust-toolchain.toml` 固定了 Rust 1.98.1，第一次构建时会自动安装。
 
 ```sh
-git clone https://github.com/since2006/shell-rs.git
+git clone https://github.com/x1t/shell-rs.git
 cd shell-rs
 cargo run
 ```
@@ -181,7 +181,7 @@ cargo run
 
 ## 参与贡献
 
-欢迎提交 [Issue](https://github.com/since2006/shell-rs/issues) 和 Pull Request。架构说明和代码约定见 [CLAUDE.md](CLAUDE.md)。提交前请确认下面三条都通过：
+欢迎提交 [Issue](https://github.com/x1t/shell-rs/issues) 和 Pull Request。架构说明和代码约定见 [CLAUDE.md](CLAUDE.md)。提交前请确认下面三条都通过：
 
 ```sh
 cargo fmt --check

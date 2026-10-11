@@ -231,7 +231,10 @@ fn the_about_page_opens_the_website(cx: &mut TestAppContext) {
     let (handle, _) = open_workspace(cx);
     open_about_settings(cx, handle);
     in_frame(cx, handle, |window, cx| window.click("open-website", cx));
-    assert_eq!(cx.opened_url().as_deref(), Some("https://shellrs.com"));
+    assert_eq!(
+        cx.opened_url().as_deref(),
+        Some("https://github.com/x1t/shell-rs")
+    );
 }
 
 /// Open 设置 › 关于.
@@ -409,7 +412,7 @@ async fn the_update_dialog_links_the_changelog_and_restarts_into_the_new_version
     in_frame(cx, handle, |window, cx| window.click("open-changelog", cx));
     assert_eq!(
         cx.opened_url().as_deref(),
-        Some("https://shellrs.com/changelog")
+        Some("https://github.com/x1t/shell-rs/blob/main/CHANGELOG.md")
     );
     in_frame(cx, handle, |window, _| {
         assert!(window.try_find("update-dialog").is_some());

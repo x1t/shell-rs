@@ -24,14 +24,14 @@ pub const APPLE_TEAM_ID: Option<&str> = option_env!("SHELLRS_APPLE_TEAM_ID");
 /// new `schema`, not a new path.
 pub const MANIFEST_URL: &str = "https://dl.shellrs.com/update/v1/{channel}.json";
 
-/// The ShellRS website.
-pub const WEBSITE: &str = "https://shellrs.com";
+/// The ShellRS project page.
+pub const WEBSITE: &str = "https://github.com/x1t/shell-rs";
 
 /// Where a person downloads ShellRS by hand.
-pub const DOWNLOAD_PAGE: &str = "https://shellrs.com/download";
+pub const DOWNLOAD_PAGE: &str = "https://github.com/x1t/shell-rs/releases";
 
 /// What each version changed.
-pub const CHANGELOG_PAGE: &str = "https://shellrs.com/changelog";
+pub const CHANGELOG_PAGE: &str = "https://github.com/x1t/shell-rs/blob/main/CHANGELOG.md";
 
 /// The minisign public keys a manifest may be signed with: the key in use,
 /// and a spare kept offline so the first can be replaced. Rotating means

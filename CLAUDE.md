@@ -64,8 +64,8 @@ ShellRS（crate 与二进制都叫 `shellrs`）是 Xshell / WinSCP 式的 SSH �
 - **在线升级**：
   - 清单地址 `https://dl.shellrs.com/update/v1/{channel}.json`、平台 key 的名字和公钥槽位一经发布就不能改。
   - 默认在后台检查并下载，下好、校验完才在标题栏亮按钮（`success` 色，出错时 `warning` 色）。
-  - 更新对话框不列更新内容：「查看更新内容」打开整页的 `https://shellrs.com/changelog`，另一个按钮是「重启并安装」，没有「稍后」。不点也在退出时装好。
-  - 「设置 › 关于」三组：「应用更新」三行（当前版本、更新渠道（稳定版 / Beta，运行时切换）、自动升级），「隐私」一行（见下条），「ShellRS」一行「官网」（打开 `https://shellrs.com`）。
+  - 更新对话框不列更新内容：「查看更新内容」打开 GitHub 上的 `CHANGELOG.md`（`CHANGELOG_PAGE`），另一个按钮是「重启并安装」，没有「稍后」。不点也在退出时装好。
+  - 「设置 › 关于」三组：「应用更新」三行（当前版本、更新渠道（稳定版 / Beta，运行时切换）、自动升级），「隐私」一行（见下条），「ShellRS」一行「项目主页」（打开 `https://github.com/x1t/shell-rs`：这是 x1t 的 fork，链接不指向原作者的 shellrs.com）。
   - 检查只发 User-Agent，不发安装标识。
 - **匿名使用统计**：发给 Aptabase（没有 Rust SDK，自己调 `POST /api/v0/events`；App Key 是 `analytics::APP_KEY`，不是秘密）。「设置 › 关于 › 隐私 › 发送匿名使用统计」默认开，关掉就清空本机攒下的计数。
   - 只发版本、系统名和版本、CPU 架构、设置快照（取值固定，主机等数量只报档位）和功能使用次数。不发主机、凭据、命令、文件名、路径、语言，也没有任何标识（Aptabase 用 IP + UA 加每日的盐算日活）。

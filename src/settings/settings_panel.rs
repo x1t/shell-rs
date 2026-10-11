@@ -729,7 +729,7 @@ fn about_groups(panel: &SettingsPanel, cx: &App) -> Vec<SettingGroup> {
                         .outline()
                         .with_size(options.size())
                         .icon(Icon::new(CatalogIcon::ExternalLink))
-                        .label("shellrs.com")
+                        .label("GitHub")
                         .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenWebsite), cx))
                 }),
             )

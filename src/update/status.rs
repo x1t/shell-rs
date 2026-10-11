@@ -29,7 +29,7 @@ pub enum Tone {
 pub enum UpdateStep {
     /// Restart into the version downloaded.
     Restart,
-    /// Download it by hand from the website.
+    /// Download it by hand from GitHub Releases.
     DownloadPage,
     /// Download it here; `retry` after a download that failed.
     Download { retry: bool },

@@ -121,8 +121,8 @@ update.status.up_to_date:
   zh-CN: 当前已是最新版本。
   en: ShellRS is up to date.
 update.status.available_manual:
-  zh-CN: 发现新版本 %{version}，需要从官网下载安装。
-  en: ShellRS %{version} is available. Download it from the website to install it.
+  zh-CN: 发现新版本 %{version}，需要从 GitHub Releases 下载安装。
+  en: ShellRS %{version} is available. Download it from GitHub Releases to install it.
 update.status.available_unsupported:
   zh-CN: 发现新版本 %{version}。%{reason}。
   en: ShellRS %{version} is available. %{reason}.
@@ -194,8 +194,8 @@ update.dialog.install_failed:
   zh-CN: 安装失败：%{error}
   en: "Couldn’t install the update: %{error}"
 update.dialog.manual:
-  zh-CN: 这个版本需要从官网下载安装，无法在 ShellRS 中直接更新。
-  en: This version can’t be installed from within ShellRS. Download it from the website.
+  zh-CN: 这个版本需要从 GitHub Releases 下载安装，无法在 ShellRS 中直接更新。
+  en: This version can’t be installed from within ShellRS. Download it from GitHub Releases.
 update.dialog.restart:
   zh-CN: 重启并安装
   en: Restart to update

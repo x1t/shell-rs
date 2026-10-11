@@ -1,6 +1,6 @@
 //! The update dialog: how far the newer ShellRS's download is, and
 //! restarting into it. What it changes is not listed here: a button opens
-//! the website's changelog.
+//! the changelog on GitHub.
 //!
 //! Opened from the title bar button and from 设置 › 关于. What a restart
 //! interrupts is written here, above the button, so restarting needs no

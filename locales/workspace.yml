@@ -253,8 +253,8 @@ workspace.update.failed_title:
   zh-CN: 更新没有完成
   en: Update not completed
 workspace.update.failed:
-  zh-CN: 没有装上 %{to}，ShellRS 仍是 %{from}。可以到官网下载安装。
-  en: "%{to} wasn’t installed, so ShellRS is still %{from}. You can download it from the website."
+  zh-CN: 没有装上 %{to}，ShellRS 仍是 %{from}。可以到 GitHub Releases 下载安装。
+  en: "%{to} wasn’t installed, so ShellRS is still %{from}. You can download it from GitHub Releases."
 
 workspace.compose.title:
   zh-CN: 撰写

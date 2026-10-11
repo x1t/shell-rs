@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/since2006/shell-rs/releases"><img src="https://img.shields.io/github/v/release/since2006/shell-rs?include_prereleases&label=release" alt="Release"></a>
+  <a href="https://github.com/x1t/shell-rs/releases"><img src="https://img.shields.io/github/v/release/x1t/shell-rs?include_prereleases&label=release" alt="Release"></a>
   <a href="#license"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="Platform: macOS | Windows | Linux">
   <img src="https://img.shields.io/badge/rust-1.98-orange" alt="Rust 1.98">
@@ -115,7 +115,7 @@ Hosts, groups, credentials and forwarding rules live in a local SQLite database.
 
 ## Download
 
-Download from [shellrs.com/download](https://shellrs.com/download), which offers the package for your system, or from GitHub [Releases](https://github.com/since2006/shell-rs/releases). Betas are marked Pre-release there; to get new features early, switch the update channel to Beta in Settings › About.
+Download from GitHub [Releases](https://github.com/x1t/shell-rs/releases). Betas are marked Pre-release there; to get new features early, switch the update channel to Beta in Settings › About.
 
 | System | Package | Notes |
 | --- | --- | --- |
@@ -155,7 +155,7 @@ The command hands each request to the running ShellRS, which logs in with the sa
 Install [rustup](https://rustup.rs). The repository's `rust-toolchain.toml` pins Rust 1.98.1, which rustup installs on the first build.
 
 ```sh
-git clone https://github.com/since2006/shell-rs.git
+git clone https://github.com/x1t/shell-rs.git
 cd shell-rs
 cargo run
 ```
@@ -183,7 +183,7 @@ Not implemented yet:
 
 ## Contributing
 
-Issues and pull requests are welcome on [GitHub](https://github.com/since2006/shell-rs/issues). Architecture notes and code conventions are in [CLAUDE.md](CLAUDE.md) (in Chinese). Before sending a change, make sure these pass:
+Issues and pull requests are welcome on [GitHub](https://github.com/x1t/shell-rs/issues). Architecture notes and code conventions are in [CLAUDE.md](CLAUDE.md) (in Chinese). Before sending a change, make sure these pass:
 
 ```sh
 cargo fmt --check
