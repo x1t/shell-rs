@@ -1,4 +1,8 @@
-use std::{cell::Cell, rc::Rc, sync::Arc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    sync::Arc,
+};
 
 use gpui_kit::component::dock::{
     BasePanelView, DockArea, DockAreaRenderer, DockContext, DockSkin, NodeId, PanelState,
@@ -6,6 +10,8 @@ use gpui_kit::component::dock::{
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
+
+use super::compose::COMPOSE_HEIGHT;
 
 /// The workspace's dock appearance: gpui-kit's `DockSkin`, plus a view that
 /// fills the center while it holds no tab.
@@ -20,6 +26,9 @@ pub(super) struct WorkspaceDockSkin {
     area: WeakEntity<DockArea>,
     placeholder: AnyView,
     center_empty: Cell<bool>,
+    /// 撰写, while it is open. It rides on `center_frame` too: the bottom
+    /// dock would take tabs dragged into it and keep a strip when closed.
+    compose: RefCell<Option<AnyView>>,
 }
 
 impl WorkspaceDockSkin {
@@ -40,6 +49,7 @@ impl WorkspaceDockSkin {
                 area: cx.weak_entity(),
                 placeholder,
                 center_empty: Cell::new(false),
+                compose: RefCell::new(None),
             });
             skin = Some(this.clone());
             DockArea::new(id, version, window, cx).with_renderer(this)
@@ -62,6 +72,16 @@ impl WorkspaceDockSkin {
             _ = self.area.update(cx, |_, cx| cx.notify());
         }
     }
+
+    /// Show 撰写 (`Some`) under the center's tabs, or take it away. Redraws
+    /// only when that changes: it is asked on every move of the tab in front.
+    pub(super) fn set_compose(&self, compose: Option<AnyView>, cx: &mut App) {
+        let changed = self.compose.borrow().is_some() != compose.is_some();
+        self.compose.replace(compose);
+        if changed {
+            _ = self.area.update(cx, |_, cx| cx.notify());
+        }
+    }
 }
 
 impl DockAreaRenderer for WorkspaceDockSkin {
@@ -80,9 +100,21 @@ impl DockAreaRenderer for WorkspaceDockSkin {
     }
 
     fn center_frame(&self, window: &mut Window, cx: &mut App) -> Stateful<Div> {
+        let compose = self.compose.borrow().clone();
         self.skin
             .center_frame(window, cx)
             .relative()
+            .when_some(compose, |frame, compose| {
+                frame.pb(COMPOSE_HEIGHT).child(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .right_0()
+                        .bottom_0()
+                        .h(COMPOSE_HEIGHT)
+                        .child(compose),
+                )
+            })
             .when(self.center_empty.get(), |frame| {
                 // Deferred, so it paints after the empty layout's own
                 // background, which the dock draws later in the same frame.

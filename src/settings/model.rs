@@ -34,6 +34,8 @@ pub struct AppSettings {
     /// 显示隐藏文件 in the SFTP lists, each side on its own, switched from
     /// their toolbars and menus.
     pub show_hidden: ShowHiddenFiles,
+    /// 撰写 under the center area.
+    pub compose: ComposeSettings,
     /// 终端 → 通知.
     pub notifications: NotificationSettings,
     /// 关键字高亮.
@@ -42,6 +44,20 @@ pub struct AppSettings {
     pub window: WindowSettings,
     /// 键盘快捷键: what the user changed of them.
     pub shortcuts: ShortcutOverrides,
+}
+
+/// 撰写: open under the center area until the user closes it, with its
+/// shortcut or the button under the right sidebar's tools.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ComposeSettings {
+    pub open: bool,
+}
+
+impl Default for ComposeSettings {
+    fn default() -> Self {
+        Self { open: true }
+    }
 }
 
 /// 应用 → 窗口: what the next launch restores of the main window. Both on

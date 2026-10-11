@@ -55,6 +55,12 @@ ShellRS（crate 与二进制都叫 `shellrs`）是 Xshell / WinSCP 式的 SSH �
   - 历史命令读主机的 `~/.bash_history`，不自己记录；点一条是放进输入行、不执行，另有执行按钮。
   - 命令片段所有主机共用（库里预留了「适用范围」列）；「点击时自动执行」新建时默认勾上；执行按钮鼠标移上去才出现，位置一直留着。
   - 片段在分类里按手动顺序（`sort_order`），新建的放最后，拖动排序，能拖进别的分类（拖到分类标题上 = 放最后）；分类仍按名称；搜索时不能拖。列表宽 ≥ 480 px 时每行两张卡片。
+- **撰写栏**：同 Xshell 的撰写，中间区底部一条、整个窗口一个，开合存设置（`compose.open`），默认打开（用户定的）；⌘⌥I / Ctrl+Alt+I（不用 ⌘⌥M：macOS 的「最小化所有窗口」）和工具切换列底部的键盘图标切换。
+  - Enter「发送到当前」（右侧栏跟的那个远程终端），Shift+Enter 换行；「发送到全部（N）」发给所有已连接的远程终端，同一主机多个标签各发一次，不含本地终端，不确认。
+  - 当作打字发送（`type_text`）：每行一个回车，不清当前行，全屏程序里也照发（用户定的），不像片段的 `enter_command` 会拒绝备用屏。
+  - 画在 `WorkspaceDockSkin::center_frame` 里，不用底部 Dock：Dock 会接住拖进来的标签，收起时还留一条标签栏。
+  - ↑ / ↓ 翻发过的内容，同 shell：光标在第一行 ↑、最后一行 ↓ 才翻，否则照常移光标（`capture_action` 截 `MoveUp` / `MoveDown`）；调回后光标放末尾。存在数据目录的 `compose_history.json`（明文，最多 200 条，连续重复只记一次），不进库也不进 settings.json；UI 测试只在内存里。
+  - 输入框是 `submit_on_enter` 的 `Textarea`：它把 Enter 往外传，撰写栏必须 `on_action(Enter)` 接住，否则这个键会被当成文字再插一个换行。
 - **在线升级**：
   - 清单地址 `https://dl.shellrs.com/update/v1/{channel}.json`、平台 key 的名字和公钥槽位一经发布就不能改。
   - 默认在后台检查并下载，下好、校验完才在标题栏亮按钮（`success` 色，出错时 `warning` 色）。

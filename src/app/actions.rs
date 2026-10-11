@@ -51,6 +51,8 @@ gpui_kit::actions!(
         ToggleHostPanel,
         /// Show or hide the right sidebar, whichever tool it is showing.
         ToggleToolSidebar,
+        /// Show or hide 撰写 under the center area.
+        ToggleComposeBar,
         /// Read the network connections of the SSH terminal's host again.
         RefreshConnections,
         /// Read the processes of the SSH terminal's host again.
@@ -363,6 +365,14 @@ pub struct RemoveDockerObject {
 pub struct EnterCommand {
     pub command: String,
     pub run: bool,
+}
+
+/// Type what 撰写 holds into the SSH terminal in front, or with `all` into
+/// every connected SSH terminal, and empty it.
+#[derive(Action, Clone, PartialEq, Eq)]
+#[action(namespace = shellrs, no_json)]
+pub struct SendCompose {
+    pub all: bool,
 }
 
 /// Put a snippet where it was dragged in the 命令片段 list.

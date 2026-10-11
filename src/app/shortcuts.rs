@@ -81,7 +81,7 @@ macro_rules! shortcut {
 }
 
 /// The shortcuts of 设置 › 键盘快捷键, in the order the page lists them.
-pub static SHORTCUTS: [Shortcut; 25] = [
+pub static SHORTCUTS: [Shortcut; 26] = [
     shortcut!(
         "new-host",
         "app.shortcut.new_host",
@@ -221,6 +221,17 @@ pub static SHORTCUTS: [Shortcut; 25] = [
         numbered: true,
         action: |digit| Box::new(SwitchToTab(digit)),
     },
+    // 撰写 types into the terminals, so it is listed with them; it works
+    // anywhere. Not ⌘⌥M: macOS minimizes every window of the app with it.
+    shortcut!(
+        "toggle-compose",
+        "app.shortcut.toggle_compose",
+        Terminal,
+        &[],
+        "cmd-alt-i",
+        "ctrl-alt-i",
+        ToggleComposeBar
+    ),
     shortcut!(
         "terminal-copy",
         "app.shortcut.terminal_copy",

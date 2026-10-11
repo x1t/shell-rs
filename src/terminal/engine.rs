@@ -339,6 +339,18 @@ impl TerminalEngine {
         Ok(())
     }
 
+    /// Type `text` and press Enter, as if the user did, a line at a time:
+    /// what 撰写 sends. Unlike `enter_command` it goes to a full-screen
+    /// program too and leaves what is already on the line alone. Says why
+    /// not while the shell is not running.
+    pub fn type_text(&self, text: &str) -> Result<(), SharedString> {
+        if !self.lifecycle.accepts_input() {
+            return Err(t!("terminal.command.not_connected"));
+        }
+        self.send_user_input(encode_typed(text));
+        Ok(())
+    }
+
     pub fn resize(&mut self, size: TerminalSize, cx: &mut gpui_kit::Context<Self>) {
         if size == self.size {
             return;
@@ -1116,6 +1128,14 @@ fn encode_command(
     Ok(bytes)
 }
 
+/// What typing `text` and pressing Enter sends: every line break is the
+/// Enter key, and one ends it.
+fn encode_typed(text: &str) -> Vec<u8> {
+    let mut bytes: Vec<u8> = text.replace("\r\n", "\n").replace('\n', "\r").into_bytes();
+    bytes.push(b'\r');
+    bytes
+}
+
 /// See `TerminalEngine::clear_keeping_prompt`. Returns whether anything was
 /// cleared.
 fn clear_keeping_cursor_line(term: &mut AlacrittyTerm) -> bool {
@@ -1687,6 +1707,14 @@ mod tests {
         assert!(encode_command(lines, true, true, TermMode::default()).is_ok());
         // vim and less have the keys to themselves.
         assert!(encode_command("ls", true, true, TermMode::ALT_SCREEN).is_err());
+    }
+
+    #[test]
+    fn typed_text_presses_enter_after_each_line() {
+        assert_eq!(encode_typed("uptime"), b"uptime\r");
+        assert_eq!(encode_typed("cd /tmp\nls\r\npwd"), b"cd /tmp\rls\rpwd\r");
+        // Nothing is wrapped as a paste or cleared first.
+        assert_eq!(encode_typed(":wq"), b":wq\r");
     }
 
     /// Sends its events, then stays quiet until shut down, as a shell does

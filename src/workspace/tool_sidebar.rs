@@ -7,7 +7,7 @@ use gpui_kit::component::{
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
-use crate::app::{CatalogIcon, DOCKER_ICON, ToggleTool, ToolKind};
+use crate::app::{CatalogIcon, DOCKER_ICON, ToggleComposeBar, ToggleTool, ToolKind};
 use crate::docker::{Container, DockerObject, DockerPanel, ObjectSummary};
 use crate::history::HistoryPanel;
 use crate::host::{HostId, HostOs, HostStore, SnippetCategoryId};
@@ -411,9 +411,11 @@ impl Render for ToolSidebar {
 pub fn render_tool_switch(
     showing: Option<ToolKind>,
     offered: &[ToolKind],
+    compose_open: bool,
     target: &FocusHandle,
     cx: &App,
 ) -> impl IntoElement {
+    let compose = target.clone();
     v_flex()
         .id("tool-switch")
         .test_support()
@@ -440,4 +442,19 @@ pub fn render_tool_switch(
                     target.dispatch_action(&ToggleTool(tool), window, cx)
                 })
         }))
+        // 撰写 goes with the SSH terminals too; it sits apart, at the foot.
+        .child(div().flex_1())
+        .child(
+            Button::new("toggle-compose")
+                .ghost()
+                .icon(Icon::new(CatalogIcon::Keyboard))
+                .selected(compose_open)
+                .toggled(compose_open)
+                .tooltip_with_action(t!("workspace.compose.title"), &ToggleComposeBar, None)
+                .tooltip_placement(Placement::Left)
+                .accessibility_label(t!("workspace.compose.title"))
+                .on_click(move |_, window, cx| {
+                    compose.dispatch_action(&ToggleComposeBar, window, cx)
+                }),
+        )
 }

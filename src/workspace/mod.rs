@@ -4,6 +4,8 @@
 
 mod analytics;
 mod cli_changes;
+mod compose;
+mod compose_history;
 mod credentials;
 mod dock_skin;
 mod editors;

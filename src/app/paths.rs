@@ -57,6 +57,11 @@ pub fn window_state_path() -> PathBuf {
     data_dir().join("window.json")
 }
 
+/// What 撰写 sent, for ↑ and ↓ to bring back after a restart.
+pub fn compose_history_path() -> PathBuf {
+    data_dir().join("compose_history.json")
+}
+
 /// What 匿名使用统计 keeps between runs: whether this installation was
 /// reported, and the uses not sent yet. Beside the database, so a fresh
 /// data directory is a fresh installation.

@@ -457,6 +457,17 @@ impl TerminalView {
         Ok(())
     }
 
+    /// Type `text` with Enter after each line; see
+    /// [`TerminalEngine::type_text`].
+    pub fn type_text(&mut self, text: &str, cx: &mut Context<Self>) -> Result<(), SharedString> {
+        self.engine.read(cx).type_text(text)?;
+        self.selecting = false;
+        self.scroll_accumulator.reset();
+        self.cursor_visible = true;
+        cx.notify();
+        Ok(())
+    }
+
     /// Add the owner's commands below the terminal's own in the context menu.
     pub fn set_menu_items(&mut self, items: TerminalMenuItems) {
         self.menu_items = Some(items);

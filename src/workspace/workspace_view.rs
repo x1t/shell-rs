@@ -77,6 +77,7 @@ use crate::terminal::{
 use crate::update::{UpdateServices, Updater, UpdaterEvent};
 
 use super::{
+    compose::ComposeBar,
     dock_skin::WorkspaceDockSkin,
     recent_hosts::RecentHosts,
     sidebar::Sidebar,
@@ -149,7 +150,9 @@ pub(super) enum PromptOwner {
 pub struct Workspace {
     pub(super) store: Entity<HostStore>,
     pub(super) dock_area: Entity<DockArea>,
-    skin: Rc<WorkspaceDockSkin>,
+    pub(super) skin: Rc<WorkspaceDockSkin>,
+    /// 撰写, which the skin draws under the center while it is open.
+    pub(super) compose: Entity<ComposeBar>,
     /// The left dock's panel: the host tree or the forward list.
     pub(super) sidebar: Entity<Sidebar>,
     /// The right dock's panel: the tools for the host of the tab in front.
@@ -280,6 +283,10 @@ impl Workspace {
         }
         this.sync_cli_server(cx);
         this.xshell_folder = crate::import::default_folder();
+
+        this.compose.update(cx, |compose, _| {
+            compose.keep_history_in(crate::app::compose_history_path())
+        });
 
         this.remember_window(crate::app::window_state_path(), window, cx);
         let bundle = cx.app_path().ok();
@@ -525,14 +532,19 @@ impl Workspace {
         // Settled before the first `LayoutChanged` arrives, so the handler
         // does not take the initial state for a tab having just closed.
         skin.set_center_empty(terminals.is_empty(), cx);
+        let compose = {
+            let (workspace, target) = (cx.weak_entity(), focus_handle.clone());
+            cx.new(|cx| ComposeBar::new(workspace, target, window, cx))
+        };
         // Rules marked to start with the application. What they need to ask
         // arrives as events, once the workspace is there to show it.
         forwards.update(cx, |forwards, cx| forwards.start_automatic(cx));
 
-        Self {
+        let this = Self {
             store,
             dock_area,
             skin,
+            compose,
             sidebar,
             tools,
             host_panel,
@@ -567,7 +579,10 @@ impl Workspace {
             notice_times: HashMap::new(),
             window_state_save: None,
             _subscriptions: subscriptions,
-        }
+        };
+        // Open as it was left, while an SSH terminal is on screen.
+        this.sync_compose(cx);
+        this
     }
 
     /// The center tab in front.
@@ -2617,6 +2632,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::on_clear_terminal))
             .on_action(cx.listener(Self::on_toggle_host_panel))
             .on_action(cx.listener(Self::on_toggle_tool_sidebar))
+            .on_action(cx.listener(Self::on_toggle_compose_bar))
+            .on_action(cx.listener(Self::on_send_compose))
             .on_action(cx.listener(Self::on_toggle_tool))
             .on_action(cx.listener(Self::on_toggle_monitor_detail))
             .on_action(cx.listener(Self::on_refresh_connections))
@@ -2694,6 +2711,7 @@ impl Render for Workspace {
                         area.child(render_tool_switch(
                             tool,
                             &offered_tools,
+                            self.settings.read(cx).settings().compose.open,
                             &self.focus_handle,
                             cx,
                         ))

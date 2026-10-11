@@ -20,6 +20,9 @@ app.shortcut.toggle_sidebar:
 app.shortcut.toggle_tool_sidebar:
   zh-CN: 显示或隐藏右侧栏
   en: Show or hide right sidebar
+app.shortcut.toggle_compose:
+  zh-CN: 显示或隐藏撰写栏
+  en: Show or hide compose bar
 app.shortcut.focus_search:
   zh-CN: 聚焦搜索
   en: Focus search

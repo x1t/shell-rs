@@ -11,9 +11,9 @@ mod terminal_themes;
 
 pub use apply::apply;
 pub use model::{
-    AnalyticsSettings, AppSettings, Appearance, Choice, ExternalCliSettings, InterfaceLanguage,
-    NotificationSettings, TerminalFontSettings, TerminalHighlightSettings, TerminalThemeSettings,
-    UpdateSettings, WindowSettings,
+    AnalyticsSettings, AppSettings, Appearance, Choice, ComposeSettings, ExternalCliSettings,
+    InterfaceLanguage, NotificationSettings, TerminalFontSettings, TerminalHighlightSettings,
+    TerminalThemeSettings, UpdateSettings, WindowSettings,
 };
 pub use settings_panel::{SettingsPanel, SettingsPanelEvent};
 pub use store::{SettingsProblem, SettingsStore, SettingsStoreEvent};
