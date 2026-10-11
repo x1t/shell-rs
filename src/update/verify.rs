@@ -291,7 +291,10 @@ pub(crate) mod tests {
 
     /// The release workflow's `packaging/make-manifest.sh` and this module
     /// agree on the envelope. Needs the `minisign` and `jq` commands, so it
-    /// passes quietly where they are not installed.
+    /// passes quietly where they are not installed. Unix only, like the
+    /// other tests that run scripts for real: on Windows `bash` may well be
+    /// WSL's, which sees neither the environment nor `C:\` paths.
+    #[cfg(unix)]
     #[test]
     fn the_release_script_signs_what_the_client_accepts() {
         let have = |tool: &str| {
@@ -318,14 +321,8 @@ pub(crate) mod tests {
         assert!(generated.status.success(), "{generated:?}");
         let dist = dir.path().join("dist");
         std::fs::create_dir(&dist).unwrap();
-        for name in [
-            "ShellRS-0.2.0-macos-aarch64.app.zip",
-            "ShellRS-0.2.0-macos-x86_64.app.zip",
-            "ShellRS-0.2.0-windows-x86_64-setup.exe",
-            "ShellRS-0.2.0-linux-x86_64.AppImage",
-        ] {
-            std::fs::write(dist.join(name), name).unwrap();
-        }
+        let installer = "ShellRS-0.2.0-windows-x86_64-setup.exe";
+        std::fs::write(dist.join(installer), installer).unwrap();
         let notes = dir.path().join("notes.md");
         std::fs::write(&notes, "### 新增\n\n- 在线升级\n").unwrap();
         let out = dir.path().join("stable.json");
@@ -339,10 +336,7 @@ pub(crate) mod tests {
             .env("MINISIGN_KEY_FILE", &secret)
             .env_remove("MINISIGN_PASSWORD")
             // As the release workflow sets it.
-            .env(
-                "SHELLRS_MIRROR_BASE",
-                "https://github.com/since2006/shell-rs/releases/download/v0.2.0",
-            )
+            .env("SHELLRS_REPOSITORY_URL", "https://github.com/x1t/shell-rs")
             .output()
             .unwrap();
         drop(forks);
@@ -356,47 +350,23 @@ pub(crate) mod tests {
         };
         assert_eq!(manifest.version, Version::new(0, 2, 0));
         assert_eq!(manifest.notes, "### 新增\n\n- 在线升级\n");
-        for arch in ["aarch64", "x86_64"] {
-            let key = format!("macos-{arch}");
-            let name = format!("ShellRS-0.2.0-{key}.app.zip");
-            let asset = &manifest.assets[&key];
-            // Each architecture has its own package and both download sources.
-            assert_eq!(
-                asset.urls,
-                [
-                    format!("https://dl.shellrs.com/releases/0.2.0/{name}"),
-                    format!(
-                        "https://github.com/since2006/shell-rs/releases/download/v0.2.0/{name}"
-                    ),
-                ]
-            );
-            assert_eq!(verify_file(&dist.join(&name), asset), Ok(()));
-            assert_eq!(
-                manifest.installers[&key],
-                format!("https://dl.shellrs.com/releases/0.2.0/ShellRS-0.2.0-{key}.dmg")
-            );
-        }
-        assert_ne!(
-            manifest.assets["macos-aarch64"].sha256,
-            manifest.assets["macos-x86_64"].sha256
-        );
         assert_eq!(
-            verify_file(
-                &dist.join("ShellRS-0.2.0-macos-x86_64.app.zip"),
-                &manifest.assets["macos-aarch64"],
-            ),
-            Err(UpdateError::Corrupt)
+            manifest.notes_url.as_deref(),
+            Some("https://github.com/x1t/shell-rs/releases/tag/v0.2.0")
         );
-        let package = dist.join("ShellRS-0.2.0-linux-x86_64.AppImage");
-        assert_eq!(
-            verify_file(&package, &manifest.assets["linux-x86_64"]),
-            Ok(())
-        );
-        assert!(
-            manifest.installers["windows-x86_64"].ends_with("windows-x86_64-setup.exe"),
-            "{:?}",
-            manifest.installers
-        );
+        // Windows only: the installer is the update and the download, in
+        // the version's release.
+        let address =
+            format!("https://github.com/x1t/shell-rs/releases/download/v0.2.0/{installer}");
+        let platforms: Vec<&str> = manifest.assets.keys().map(String::as_str).collect();
+        assert_eq!(platforms, ["windows-x86_64"]);
+        let asset = &manifest.assets["windows-x86_64"];
+        assert_eq!(asset.urls, [address.clone()]);
+        assert_eq!(manifest.installers["windows-x86_64"], address);
+        assert_eq!(verify_file(&dist.join(installer), asset), Ok(()));
+        let other = dir.path().join("other.exe");
+        std::fs::write(&other, "not the installer").unwrap();
+        assert_eq!(verify_file(&other, asset), Err(UpdateError::Corrupt));
         assert_eq!(
             open_envelope(&bytes, Channel::Beta, &keys),
             Err(UpdateError::BadSignature)

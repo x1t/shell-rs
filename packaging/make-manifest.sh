@@ -3,10 +3,11 @@
 #
 #   packaging/make-manifest.sh <version> <channel> <notes.md> <dist-dir> <out.json>
 #
-# <dist-dir> holds the release's packages under their published names.
+# <dist-dir> holds the release's packages under their published names. This
+# fork ships Windows only: the installer is both the update and the download.
 # MINISIGN_KEY_FILE is the secret key; MINISIGN_PASSWORD its password, if it
-# has one. SHELLRS_MIRROR_BASE, when set (e.g. the GitHub release download
-# URL of a public repository), adds a second address for every package.
+# has one. SHELLRS_REPOSITORY_URL is the public GitHub repository whose
+# release `v<version>` holds the packages, e.g. https://github.com/x1t/shell-rs.
 #
 # The output is the envelope src/update/manifest.rs reads: the manifest's
 # exact text and its minisign signature, whose trusted comment
@@ -20,15 +21,10 @@ notes=$3
 dist=$4
 out=$5
 
-base="https://dl.shellrs.com/releases/$version"
-mirror=${SHELLRS_MIRROR_BASE:-}
+repository=${SHELLRS_REPOSITORY_URL:?set SHELLRS_REPOSITORY_URL to the GitHub repository}
+base="$repository/releases/download/v$version"
 
-mac_arm="ShellRS-$version-macos-aarch64.app.zip"
-mac_intel="ShellRS-$version-macos-x86_64.app.zip"
-dmg_arm="ShellRS-$version-macos-aarch64.dmg"
-dmg_intel="ShellRS-$version-macos-x86_64.dmg"
 win="ShellRS-$version-windows-x86_64-setup.exe"
-linux="ShellRS-$version-linux-x86_64.AppImage"
 
 sha256() {
     if command -v sha256sum >/dev/null; then
@@ -38,17 +34,16 @@ sha256() {
     fi
 }
 
-# The asset entry of one package: its addresses, size and SHA-256.
+# The asset entry of one package: its address, size and SHA-256.
 asset() {
     local file="$dist/$1"
     local size
     size=$(wc -c <"$file" | tr -d ' ')
     jq -n \
         --arg url "$base/$1" \
-        --arg mirror "${mirror:+$mirror/$1}" \
         --argjson size "$size" \
         --arg sha256 "$(sha256 "$file")" \
-        '{urls: ([$url] + (if $mirror == "" then [] else [$mirror] end)), size: $size, sha256: $sha256}'
+        '{urls: [$url], size: $size, sha256: $sha256}'
 }
 
 work=$(mktemp -d)
@@ -59,15 +54,9 @@ jq -n -j \
     --arg channel "$channel" \
     --arg published "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --rawfile notes "$notes" \
-    --arg notes_url "https://shellrs.com/changelog#$version" \
-    --argjson mac_arm "$(asset "$mac_arm")" \
-    --argjson mac_intel "$(asset "$mac_intel")" \
+    --arg notes_url "$repository/releases/tag/v$version" \
     --argjson win "$(asset "$win")" \
-    --argjson linux "$(asset "$linux")" \
-    --arg dmg_arm "$base/$dmg_arm" \
-    --arg dmg_intel "$base/$dmg_intel" \
     --arg win_url "$base/$win" \
-    --arg linux_url "$base/$linux" \
     '{
         schema: 1,
         channel: $channel,
@@ -78,16 +67,10 @@ jq -n -j \
         notes: $notes,
         notes_url: $notes_url,
         assets: {
-            "macos-aarch64": $mac_arm,
-            "macos-x86_64": $mac_intel,
-            "windows-x86_64": $win,
-            "linux-x86_64": $linux
+            "windows-x86_64": $win
         },
         installers: {
-            "macos-aarch64": $dmg_arm,
-            "macos-x86_64": $dmg_intel,
-            "windows-x86_64": $win_url,
-            "linux-x86_64": $linux_url
+            "windows-x86_64": $win_url
         }
     }' >"$work/manifest.json"
 

@@ -421,13 +421,11 @@ bash 在 shell 退出时才把这次执行的命令写进历史文件，所以�
 
 ## 下载与更新
 
-安装包在 [GitHub Releases](https://github.com/x1t/shell-rs/releases)：
+安装包在 [GitHub Releases](https://github.com/x1t/shell-rs/releases)，这个 fork 只发布 Windows 的（macOS 和 Linux 请从源码构建）：
 
 | 系统 | 首次安装 | 自动更新 |
 |---|---|---|
-| macOS（Apple Silicon 和 Intel 共用一个包） | DMG，把 ShellRS 拖进「应用程序」 | 支持 |
 | Windows x64 | 安装程序，按当前用户安装到 `%LOCALAPPDATA%\Programs\ShellRS`，不需要管理员 | 支持 |
-| Linux x64 | AppImage | 支持 |
 
 ShellRS 启动 30 秒后检查一次有没有新版本，之后每 6 小时检查一次。有新版本就在后台下载并校验，完成后标题栏右上角出现绿色的更新按钮。点开后，「查看更新内容」打开 GitHub 上的更新日志（CHANGELOG.md），「重启并安装」换成新版本并重新打开。重启会断开已打开的连接、停止传输（续传进度保留）和端口转发，对话框里会写明具体有哪些。
 

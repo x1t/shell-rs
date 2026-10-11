@@ -19,10 +19,12 @@ pub const BUILD_DATE: Option<&str> = option_env!("SHELLRS_BUILD_DATE");
 /// The Apple team that signs ShellRS: a new bundle must come from it.
 pub const APPLE_TEAM_ID: Option<&str> = option_env!("SHELLRS_APPLE_TEAM_ID");
 
-/// Where each channel's signed manifest lives. Every ShellRS ever shipped
-/// asks here, so the address never changes; a new manifest format gets a
-/// new `schema`, not a new path.
-pub const MANIFEST_URL: &str = "https://dl.shellrs.com/update/v1/{channel}.json";
+/// Where each channel's signed manifest lives: an asset of the repository's
+/// `update-manifest` release, which the release workflow replaces on every
+/// release. Every ShellRS ever shipped asks here, so the address never
+/// changes; a new manifest format gets a new `schema`, not a new path.
+pub const MANIFEST_URL: &str =
+    "https://github.com/x1t/shell-rs/releases/download/update-manifest/{channel}.json";
 
 /// The ShellRS project page.
 pub const WEBSITE: &str = "https://github.com/x1t/shell-rs";
@@ -40,10 +42,10 @@ pub const CHANGELOG_PAGE: &str = "https://github.com/x1t/shell-rs/blob/main/CHAN
 /// The release workflow refuses to build a release while this is empty: a
 /// build without keys rejects every manifest.
 pub const TRUSTED_KEYS: &[&str] = &[
-    // In use: the release workflow signs with it (key id CD239E668A535CB0).
-    "RWSwXFOKZp4jzaKmM9EkpY3iIyI0vMzi4EhFDlXwGy+XYiaHIWZY4ELa",
-    // Spare, kept offline (key id F3B9F08DE80AF399).
-    "RWSZ8wrojfC584RC+h7Frcp/pDW0pd7TaB4pO6bTVVOgSj6mo1KFs0sh",
+    // In use: the release workflow signs with it (key id 40450E42E5572325).
+    "RWQlI1flQg5FQMp2IrGcMZFM3Yr8jv8TM3ljvf9aTL036cpn9foW8cVH",
+    // Spare, kept offline (key id 9799ABD26D6BC79C).
+    "RWScx2tt0quZl6LABrtNvLmXQj4i/1GgLH73f3VLk4CpL82Gtl2/mw06",
 ];
 
 /// Which stream of releases a copy follows. Beta also gets every stable
@@ -95,11 +97,11 @@ mod tests {
     fn each_channel_has_a_manifest_of_its_own() {
         assert_eq!(
             Channel::Stable.manifest_url(),
-            "https://dl.shellrs.com/update/v1/stable.json"
+            "https://github.com/x1t/shell-rs/releases/download/update-manifest/stable.json"
         );
         assert_eq!(
             Channel::Beta.manifest_url(),
-            "https://dl.shellrs.com/update/v1/beta.json"
+            "https://github.com/x1t/shell-rs/releases/download/update-manifest/beta.json"
         );
         assert_eq!(Channel::from_key("nightly"), None);
     }

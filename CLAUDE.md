@@ -62,7 +62,8 @@ ShellRS（crate 与二进制都叫 `shellrs`）是 Xshell / WinSCP 式的 SSH �
   - ↑ / ↓ 翻发过的内容，同 shell：光标在第一行 ↑、最后一行 ↓ 才翻，否则照常移光标（`capture_action` 截 `MoveUp` / `MoveDown`）；调回后光标放末尾。存在数据目录的 `compose_history.json`（明文，最多 200 条，连续重复只记一次），不进库也不进 settings.json；UI 测试只在内存里。
   - 输入框是 `submit_on_enter` 的 `Textarea`：它把 Enter 往外传，撰写栏必须 `on_action(Enter)` 接住，否则这个键会被当成文字再插一个换行。
 - **在线升级**：
-  - 清单地址 `https://dl.shellrs.com/update/v1/{channel}.json`、平台 key 的名字和公钥槽位一经发布就不能改。
+  - 清单地址 `https://github.com/x1t/shell-rs/releases/download/update-manifest/{channel}.json`（`update-manifest` 这个 Release 的附件，由 release.yml 每次覆盖；用户定的：fork 不用原作者的 dl.shellrs.com 和签名密钥，发布包只走 GitHub Releases）、平台 key 的名字和公钥槽位一经发布就不能改。
+  - **只发布 Windows**（用户定的）：release.yml 只有 verify → windows → publish，清单只有 `windows-x86_64`（安装程序既是更新包也是下载包）。macOS / Linux 的代码和 `packaging/` 下的脚本都留着，可以自己从源码构建；没有包的平台检查更新时就是「已是最新」。不需要 Apple 的证书和 secrets。
   - 默认在后台检查并下载，下好、校验完才在标题栏亮按钮（`success` 色，出错时 `warning` 色）。
   - 更新对话框不列更新内容：「查看更新内容」打开 GitHub 上的 `CHANGELOG.md`（`CHANGELOG_PAGE`），另一个按钮是「重启并安装」，没有「稍后」。不点也在退出时装好。
   - 「设置 › 关于」三组：「应用更新」三行（当前版本、更新渠道（稳定版 / Beta，运行时切换）、自动升级），「隐私」一行（见下条），「ShellRS」一行「项目主页」（打开 `https://github.com/x1t/shell-rs`：这是 x1t 的 fork，链接不指向原作者的 shellrs.com）。

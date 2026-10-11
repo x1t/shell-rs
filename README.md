@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/x1t/shell-rs/releases"><img src="https://img.shields.io/github/v/release/x1t/shell-rs?include_prereleases&label=release" alt="Release"></a>
+  <a href="https://github.com/x1t/shell-rs/releases"><img src="https://img.shields.io/github/v/release/x1t/shell-rs?include_prereleases&sort=semver&label=release" alt="Release"></a>
   <a href="#license"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="Platform: macOS | Windows | Linux">
   <img src="https://img.shields.io/badge/rust-1.98-orange" alt="Rust 1.98">
@@ -119,14 +119,13 @@ Download from GitHub [Releases](https://github.com/x1t/shell-rs/releases). Betas
 
 | System | Package | Notes |
 | --- | --- | --- |
-| macOS 11+ (Apple Silicon) | `ShellRS-<version>-macos-aarch64.dmg` | Signed and notarized. Open the DMG and drag ShellRS into Applications |
-| macOS 11+ (Intel) | `ShellRS-<version>-macos-x86_64.dmg` | Signed and notarized. Open the DMG and drag ShellRS into Applications |
 | Windows x64 | `ShellRS-<version>-windows-x86_64-setup.exe` | Installs per user, no administrator rights needed. The installer is not signed yet; if SmartScreen stops it, choose "More info › Run anyway" |
-| Linux x64 | `ShellRS-<version>-linux-x86_64.AppImage` | `chmod +x` and run. Needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12 and later) |
+
+This fork publishes Windows packages only; on macOS and Linux, build from source (see [Building from source](#building-from-source)).
 
 Every package comes with a minisign signature (`.minisig`), and each release has a `SHA256SUMS` file.
 
-Once installed, ShellRS keeps itself up to date: it checks, downloads and verifies new versions in the background, then shows an icon in the top-right corner of the title bar; click it and choose "Restart to update", or just quit and the update is installed on the way out. Automatic updates are unavailable when ShellRS runs from inside the DMG or outside the Applications folder, or on Linux when it isn't run as the AppImage.
+Once installed, ShellRS keeps itself up to date: it checks, downloads and verifies new versions in the background, then shows an icon in the top-right corner of the title bar; click it and choose "Restart to update", or just quit and the update is installed on the way out.
 
 ## Getting started
 

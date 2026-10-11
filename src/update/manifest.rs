@@ -163,10 +163,10 @@ pub(crate) mod tests {
               "published_at": "2026-10-20T08:00:00Z",
               "notes": "### 新增\n- 在线升级",
               "assets": {{
-                "macos-aarch64": {{ "urls": ["https://dl.shellrs.com/a.zip"], "size": 3, "sha256": "ab" }},
-                "linux-x86_64": {{ "urls": ["https://dl.shellrs.com/b.AppImage"], "size": 4, "sha256": "cd" }}
+                "macos-aarch64": {{ "urls": ["https://github.com/x1t/shell-rs/releases/download/v0.2.0/a.zip"], "size": 3, "sha256": "ab" }},
+                "linux-x86_64": {{ "urls": ["https://github.com/x1t/shell-rs/releases/download/v0.2.0/b.AppImage"], "size": 4, "sha256": "cd" }}
               }},
-              "installers": {{ "macos-aarch64": "https://dl.shellrs.com/a.dmg" }},
+              "installers": {{ "macos-aarch64": "https://github.com/x1t/shell-rs/releases/download/v0.2.0/a.dmg" }},
               "something_added_later": {{ "ignored": true }}
             }}"####
         )
@@ -187,10 +187,13 @@ pub(crate) mod tests {
             panic!("an update for 0.1.0");
         };
         assert_eq!(release.version, v("0.2.0"));
-        assert_eq!(release.asset.urls, ["https://dl.shellrs.com/a.zip"]);
+        assert_eq!(
+            release.asset.urls,
+            ["https://github.com/x1t/shell-rs/releases/download/v0.2.0/a.zip"]
+        );
         assert_eq!(
             release.installer.as_deref(),
-            Some("https://dl.shellrs.com/a.dmg")
+            Some("https://github.com/x1t/shell-rs/releases/download/v0.2.0/a.dmg")
         );
         assert_eq!(release.published_on(), Some("2026-10-20"));
         assert_eq!(
@@ -256,7 +259,9 @@ pub(crate) mod tests {
             manifest.offer(&v("0.2.0"), "macos-aarch64", 0.5),
             Offer::Manual {
                 version: v("0.5.0"),
-                installer: Some("https://dl.shellrs.com/a.dmg".into()),
+                installer: Some(
+                    "https://github.com/x1t/shell-rs/releases/download/v0.2.0/a.dmg".into()
+                ),
             }
         );
         assert!(matches!(
@@ -284,14 +289,9 @@ pub(crate) mod tests {
     fn the_example_manifest_parses() {
         let text = include_str!("../../packaging/manifest.example.json");
         let manifest = parse(text).unwrap().expect("schema 1");
-        for platform in [
-            "macos-aarch64",
-            "macos-x86_64",
-            "windows-x86_64",
-            "linux-x86_64",
-        ] {
-            assert!(manifest.assets.contains_key(platform), "{platform}");
-            assert!(manifest.installers.contains_key(platform), "{platform}");
-        }
+        // Windows only, as this fork ships.
+        let platforms: Vec<&str> = manifest.assets.keys().map(String::as_str).collect();
+        assert_eq!(platforms, ["windows-x86_64"]);
+        assert!(manifest.installers.contains_key("windows-x86_64"));
     }
 }

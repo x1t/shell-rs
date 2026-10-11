@@ -160,12 +160,12 @@ fn signed_manifest(
         "notes": "### 新增\n\n- 在线升级：新版本在后台下载好后，标题栏会提示。",
         "assets": {
             platform: {
-                "urls": ["https://dl.shellrs.com/releases/package"],
+                "urls": ["https://github.com/x1t/shell-rs/releases/download/v0.2.0/package"],
                 "size": package.len(),
                 "sha256": sha256,
             }
         },
-        "installers": { platform: "https://dl.shellrs.com/releases/installer" },
+        "installers": { platform: "https://github.com/x1t/shell-rs/releases/download/v0.2.0/installer" },
     })
     .to_string();
     let signature = minisign::sign(

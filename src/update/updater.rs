@@ -831,7 +831,7 @@ mod tests {
     fn a_package_is_named_after_its_address() {
         assert_eq!(
             package_name(&release(&[
-                "https://dl.shellrs.com/releases/0.2.0/ShellRS-0.2.0-macos-universal.app.zip"
+                "https://github.com/x1t/shell-rs/releases/download/v0.2.0/ShellRS-0.2.0-macos-universal.app.zip"
             ])),
             "ShellRS-0.2.0-macos-universal.app.zip"
         );

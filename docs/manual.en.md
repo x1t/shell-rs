@@ -415,13 +415,11 @@ When a file name can’t be represented exactly, ShellRS reports an error. The r
 
 ## Download and updates
 
-Packages are on [GitHub Releases](https://github.com/x1t/shell-rs/releases):
+Packages are on [GitHub Releases](https://github.com/x1t/shell-rs/releases). This fork publishes Windows packages only (on macOS and Linux, build from source):
 
 | System | First install | Automatic updates |
 |---|---|---|
-| macOS (one package for Apple Silicon and Intel) | DMG; drag ShellRS into Applications | Yes |
 | Windows x64 | Setup program, which installs for the current user into `%LOCALAPPDATA%\Programs\ShellRS`, with no administrator rights needed | Yes |
-| Linux x64 | AppImage | Yes |
 
 ShellRS checks for a new version 30 seconds after it starts, then every 6 hours. When there is one, it downloads and verifies it in the background, and then a green update button appears at the top right of the title bar. Click it: “What’s new” opens the changelog (CHANGELOG.md) on GitHub, and “Restart to update” switches to the new version and reopens. Restarting closes open connections and stops transfers (keeping their progress for resuming) and port forwards; the dialog lists exactly which.
 
