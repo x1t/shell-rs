@@ -58,6 +58,9 @@ pub struct SettingsPanel {
     integration: Entity<CliIntegration>,
     /// Where updating stands, for 关于.
     updater: Entity<Updater>,
+    /// Usage statistics are reported, so 关于 has 隐私 to turn them off: a
+    /// build without an Aptabase key never reports.
+    reports_usage: bool,
     /// The rule table of 关键字高亮, whose fields keep their state across
     /// the page's renders.
     highlight_rules: Entity<HighlightRulesEditor>,
@@ -81,6 +84,7 @@ impl SettingsPanel {
         store: Entity<SettingsStore>,
         integration: Entity<CliIntegration>,
         updater: Entity<Updater>,
+        reports_usage: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -108,6 +112,7 @@ impl SettingsPanel {
             store,
             integration,
             updater,
+            reports_usage,
             highlight_rules,
             shortcuts,
             font_families: &[],
@@ -672,39 +677,13 @@ fn external_cli_groups(panel: &SettingsPanel, cx: &App) -> Vec<SettingGroup> {
 }
 
 /// 关于: 应用更新, as three rows: the version with where updating stands,
-/// the channel, and 自动升级; then 隐私, whether usage statistics are sent.
+/// the channel, and 自动升级; then 隐私, whether usage statistics are sent,
+/// in a build that sends them.
 fn about_groups(panel: &SettingsPanel, cx: &App) -> Vec<SettingGroup> {
     let snapshot = panel.updater.read(cx).snapshot();
     let (reader, writer) = (panel.store.clone(), panel.store.clone());
     let (analytics_reader, analytics_writer) = (panel.store.clone(), panel.store.clone());
-    vec![
-        SettingGroup::new()
-            .title(t!("settings.about.updates"))
-            .items([
-                current_version_item(snapshot),
-                SettingItem::new(
-                    t!("settings.about.channel"),
-                    choice_field(
-                        &panel.store,
-                        |settings| settings.update.channel,
-                        |settings, channel| settings.update.channel = channel,
-                    ),
-                )
-                .description(t!("settings.about.channel_description")),
-                SettingItem::new(
-                    t!("settings.about.automatic"),
-                    SettingField::switch(
-                        move |cx| reader.read(cx).settings().update.automatic,
-                        move |automatic, cx| {
-                            writer.update(cx, |store, cx| {
-                                store.update(|settings| settings.update.automatic = automatic, cx)
-                            });
-                        },
-                    )
-                    .default_value(true),
-                )
-                .description(t!("settings.about.automatic_description")),
-            ]),
+    let privacy = panel.reports_usage.then(|| {
         SettingGroup::new()
             .title(t!("settings.about.privacy"))
             .items([SettingItem::new(
@@ -719,22 +698,53 @@ fn about_groups(panel: &SettingsPanel, cx: &App) -> Vec<SettingGroup> {
                 )
                 .default_value(true),
             )
-            .description(t!("settings.about.analytics_description"))]),
-        SettingGroup::new()
-            .title("ShellRS")
-            .items([SettingItem::new(
-                t!("settings.about.website"),
-                SettingField::render(|options, _, _| {
-                    Button::new("open-website")
-                        .outline()
-                        .with_size(options.size())
-                        .icon(Icon::new(CatalogIcon::ExternalLink))
-                        .label("GitHub")
-                        .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenWebsite), cx))
-                }),
+            .description(t!("settings.about.analytics_description"))])
+    });
+    let updates = SettingGroup::new()
+        .title(t!("settings.about.updates"))
+        .items([
+            current_version_item(snapshot),
+            SettingItem::new(
+                t!("settings.about.channel"),
+                choice_field(
+                    &panel.store,
+                    |settings| settings.update.channel,
+                    |settings, channel| settings.update.channel = channel,
+                ),
             )
-            .description(t!("settings.about.website_description"))]),
-    ]
+            .description(t!("settings.about.channel_description")),
+            SettingItem::new(
+                t!("settings.about.automatic"),
+                SettingField::switch(
+                    move |cx| reader.read(cx).settings().update.automatic,
+                    move |automatic, cx| {
+                        writer.update(cx, |store, cx| {
+                            store.update(|settings| settings.update.automatic = automatic, cx)
+                        });
+                    },
+                )
+                .default_value(true),
+            )
+            .description(t!("settings.about.automatic_description")),
+        ]);
+    let project = SettingGroup::new()
+        .title("ShellRS")
+        .items([SettingItem::new(
+            t!("settings.about.website"),
+            SettingField::render(|options, _, _| {
+                Button::new("open-website")
+                    .outline()
+                    .with_size(options.size())
+                    .icon(Icon::new(CatalogIcon::ExternalLink))
+                    .label("GitHub")
+                    .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenWebsite), cx))
+            }),
+        )
+        .description(t!("settings.about.website_description"))]);
+    [Some(updates), privacy, Some(project)]
+        .into_iter()
+        .flatten()
+        .collect()
 }
 
 /// 当前版本: where updating stands under the title, and the version with the

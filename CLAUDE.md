@@ -68,6 +68,7 @@ ShellRS（crate 与二进制都叫 `shellrs`）是 Xshell / WinSCP 式的 SSH �
   - 「设置 › 关于」三组：「应用更新」三行（当前版本、更新渠道（稳定版 / Beta，运行时切换）、自动升级），「隐私」一行（见下条），「ShellRS」一行「项目主页」（打开 `https://github.com/x1t/shell-rs`：这是 x1t 的 fork，链接不指向原作者的 shellrs.com）。
   - 检查只发 User-Agent，不发安装标识。
 - **匿名使用统计**：发给 Aptabase（没有 Rust SDK，自己调 `POST /api/v0/events`；App Key 是 `analytics::APP_KEY`，不是秘密）。「设置 › 关于 › 隐私 › 发送匿名使用统计」默认开，关掉就清空本机攒下的计数。
+  - **这个 fork（x1t/shell-rs）不发送**（用户定的）：`APP_KEY` 为空，`AnalyticsServices::system` 因此是 `None`，统计不启动；「设置 › 关于」只在工作区有统计时显示「隐私」组（`SettingsPanel` 的 `reports_usage`）。代码都留着，换上自己的 App Key 就恢复。
   - 只发版本、系统名和版本、CPU 架构、设置快照（取值固定，主机等数量只报档位）和功能使用次数。不发主机、凭据、命令、文件名、路径、语言，也没有任何标识（Aptabase 用 IP + UA 加每日的盐算日活）。
   - 四种事件：`app_installed`（`analytics.json` 记着已报过，送达后才记）、`app_started`、`app_active`（窗口到前台且当天 UTC 还没报过，macOS 藏在后台不算）、`usage`（功能次数，从第一次使用起满 4 小时汇总一条，不是每次使用一条：免费额度每月 2 万个事件）。
   - 不用定时器：只在启动、窗口激活、用到功能、改设置时动作，满 4 小时的汇总和失败后的重试都等下一个信号。用户明确不要定时任务，数据有误差可以接受。

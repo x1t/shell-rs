@@ -124,7 +124,7 @@ The “Settings” button at the bottom of the sidebar, or ⌘, (Ctrl+, on Windo
   - **Proxies**: an Xshell proxy (`Common\Proxy`) that is SOCKS5 or HTTP becomes the host’s proxy, its password going to the keychain; SOCKS4 and other kinds, and proxies that can’t be found, connect directly instead and are listed.
   - **Quick commands → snippets**: each `.qbl` under `QuickButton Files` becomes a snippet category named after the file (a category of the same name is reused). What comes in is what Xshell sends: `\r`, `\n` and line breaks are Enter, `\t` a tab, `\a` the bell, `\b` backspace, `\\` and `\$` a literal `\` and `$`, and `\` with an octal number that character; a final Enter becomes “Run on click”. Buttons that run a script rather than send text are skipped; each command set comes in whole into its own category, and only a snippet with the same name and command in that category is skipped. Snippets using Xshell’s session variables (`$HOSTNAME`, `$USERNAME`, `$PATH`) are listed: ShellRS sends them to the remote shell as they are.
   - A result follows: what came in and what was skipped, and which hosts need a hand. **Not done yet: `.xts` export packages, Xshell’s master password, Xshell user keys, host keys, Xftp sessions.**
-- **About**: the “Updates” group, with the current version and checking for updates, the update channel and automatic updates (see “Download and updates”); “Send anonymous usage statistics” in the “Privacy” group, on by default (see “Privacy”); and “Project page” in the “ShellRS” group, which opens the project on GitHub in your browser.
+- **About**: the “Updates” group, with the current version and checking for updates, the update channel and automatic updates (see “Download and updates”); in a build with usage statistics, the “Privacy” group (not in this build; see “Privacy”); and “Project page” in the “ShellRS” group, which opens the project on GitHub in your browser.
 
 ## External CLI
 
@@ -442,6 +442,8 @@ ShellRS never sends hosts, credentials, session content, commands, file names or
 
 - **Checking for updates**: sends only ShellRS’s version number, the operating system and the CPU architecture; see “Download and updates”.
 - **Anonymous usage statistics**: sent to [Aptabase](https://aptabase.com) to learn how many installs there are, how many devices use ShellRS each day, how the versions are spread, and which features are used most. “Send anonymous usage statistics” in “Settings › About › Privacy” is on by default; turn it off and nothing more is sent, and the counts collected on this computer are cleared too.
+
+**This build (x1t/shell-rs) sends no usage statistics**: it has no Aptabase App Key (`analytics::APP_KEY` is empty), so nothing is started, and Settings › About has no “Privacy” group. What follows is what a build with an App Key sends.
 
 Every statistics event carries ShellRS’s version number and the operating system’s name and version (such as macOS 15.1, Windows 10.0.22631, Ubuntu 24.04). There are only four events:
 

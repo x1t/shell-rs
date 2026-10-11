@@ -1230,7 +1230,10 @@ impl Workspace {
         // Something may have been installed or removed since last time.
         integration.update(cx, |integration, cx| integration.refresh(cx));
         let updater = self.updater.clone();
-        let panel = cx.new(|cx| SettingsPanel::new(store, integration, updater, window, cx));
+        // 隐私 only where something is reported.
+        let reports_usage = self.analytics.is_some();
+        let panel =
+            cx.new(|cx| SettingsPanel::new(store, integration, updater, reports_usage, window, cx));
         let subscription = cx.subscribe_in(
             &panel,
             window,

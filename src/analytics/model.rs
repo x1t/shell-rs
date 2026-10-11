@@ -747,7 +747,12 @@ mod tests {
         ] {
             assert_eq!(endpoint(key), None, "{key}");
         }
-        assert!(endpoint(super::super::APP_KEY).is_some());
+        assert_eq!(
+            endpoint("A-US-1582708162"),
+            Some("https://us.aptabase.com/api/v0/events")
+        );
+        // This build has no key: it reports to no one.
+        assert_eq!(endpoint(super::super::APP_KEY), None);
     }
 
     #[test]

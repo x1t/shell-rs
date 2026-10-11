@@ -32,4 +32,9 @@ pub use system::SystemInfo;
 
 /// The Aptabase app ShellRS reports to. Not a secret: every build carries
 /// it, and all it allows is sending events.
-pub const APP_KEY: &str = "A-US-1582708162";
+///
+/// Empty in this fork (x1t/shell-rs), so it reports to no one: the original
+/// key is the original project's. Without a key `AnalyticsServices::system`
+/// gives nothing, nothing is started, and 设置 › 关于 has no 隐私 group.
+/// A key of the fork's own turns it all back on.
+pub const APP_KEY: &str = "";

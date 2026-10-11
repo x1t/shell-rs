@@ -170,3 +170,26 @@ fn turned_off_in_the_settings_nothing_is_reported(cx: &mut TestAppContext) {
     assert!(counted(&received).is_empty(), "{received:?}");
     assert!(!came_forward(&received), "{received:?}");
 }
+
+#[gpui_kit::test]
+fn a_build_that_reports_nothing_has_no_privacy_settings(cx: &mut TestAppContext) {
+    // No analytics, as in a build without an Aptabase key.
+    let (handle, _) = open_workspace(cx);
+    in_frame(cx, handle, |window, cx| window.click("open-settings", cx));
+    in_frame(cx, handle, |window, cx| {
+        window.within("settings").click("0-6", cx)
+    });
+    // 应用更新, then straight to ShellRS: no switch to turn reporting off.
+    in_frame(cx, handle, |window, _| {
+        let website = window
+            .within("settings")
+            .within("group-1")
+            .try_find("open-website");
+        assert!(website.is_some());
+        let switch = window
+            .within("settings")
+            .within("group-1")
+            .try_find("check");
+        assert!(switch.is_none());
+    });
+}
