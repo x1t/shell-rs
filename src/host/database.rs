@@ -18,7 +18,7 @@ use super::{
     AuthKind, BookmarkSide, Credential, CredentialDraft, CredentialId, CredentialKind,
     ForwardDraft, ForwardEndpoint, ForwardId, ForwardKind, ForwardRule, GroupDraft, GroupId, Host,
     HostDraft, HostGroup, HostId, HostOs, ProxyKind, ProxySettings, PublicId, Route, Snippet,
-    SnippetCategory, SnippetCategoryId, SnippetDraft, SnippetId, SnippetScope,
+    SnippetCategory, SnippetCategoryId, SnippetDraft, SnippetId, SnippetScope, by_name,
 };
 
 /// SQLite's only integer type is `i64`, so the `u64` ids cross the boundary
@@ -38,7 +38,7 @@ fn from_sql(id: i64) -> u64 {
 /// 13 is the schema as it was rebuilt before the first release. Versions up
 /// to 12 were development builds, and their files are refused. 14 adds the
 /// command snippets.
-const SCHEMA_VERSION: i64 = 14;
+const SCHEMA_VERSION: i64 = 15;
 
 /// The whole schema, as a new database gets it.
 ///
@@ -169,6 +169,7 @@ CREATE TABLE snippets (
     scope_group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
     scope_host_id  INTEGER REFERENCES hosts(id) ON DELETE CASCADE,
     run_on_click   INTEGER NOT NULL DEFAULT 0 CHECK (run_on_click IN (0, 1)),
+    sort_order     INTEGER NOT NULL DEFAULT 0,
     CHECK (scope_group_id IS NULL OR scope_host_id IS NULL)
 ) STRICT;
 CREATE INDEX snippets_category_id ON snippets(category_id);
@@ -177,8 +178,6 @@ CREATE INDEX snippets_scope_host_id ON snippets(scope_host_id);";
 
 /// One step from a version to the next: one transaction that ends by
 /// recording the version it reached.
-// No step needs `Code` yet.
-#[allow(dead_code)]
 enum Step {
     /// Statements that make their own transaction.
     Sql(&'static str),
@@ -192,11 +191,12 @@ enum Step {
 ///
 /// A step is history: it says what that version's change was, and stays as
 /// written when `SCHEMA` changes again.
-const STEPS: [(i64, Step); 1] = [(
-    13,
-    // The command snippets.
-    Step::Sql(
-        "BEGIN;
+const STEPS: [(i64, Step); 2] = [
+    (
+        13,
+        // The command snippets.
+        Step::Sql(
+            "BEGIN;
 CREATE TABLE snippet_categories (
     id   INTEGER PRIMARY KEY,
     name TEXT NOT NULL CHECK (name <> '')
@@ -216,8 +216,49 @@ CREATE INDEX snippets_scope_group_id ON snippets(scope_group_id);
 CREATE INDEX snippets_scope_host_id ON snippets(scope_host_id);
 PRAGMA user_version = 14;
 COMMIT;",
+        ),
     ),
-)];
+    // Snippets dragged into order, starting from the order the list had.
+    (14, Step::Code(order_snippets)),
+];
+
+/// Version 14 to 15: a `sort_order` for each snippet, numbering them in each
+/// category the way the list showed them until then, by name.
+fn order_snippets(connection: &Connection) -> rusqlite::Result<()> {
+    connection.execute_batch(
+        "BEGIN;
+ALTER TABLE snippets ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;",
+    )?;
+    let ordered = (|| {
+        let mut snippets: Vec<(Option<i64>, String, i64)> = connection
+            .prepare("SELECT category_id, name, id FROM snippets")?
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        snippets.sort_by(|a, b| {
+            a.0.cmp(&b.0)
+                .then_with(|| by_name((&a.1, from_sql(a.2)), (&b.1, from_sql(b.2))))
+        });
+        let mut previous = None;
+        let mut order = 0;
+        for (category, _, id) in snippets {
+            order = if previous == Some(category) {
+                order + 1
+            } else {
+                0
+            };
+            previous = Some(category);
+            connection.execute(
+                "UPDATE snippets SET sort_order = ?2 WHERE id = ?1",
+                params![id, order],
+            )?;
+        }
+        connection.execute_batch("PRAGMA user_version = 15;\nCOMMIT;")
+    })();
+    if ordered.is_err() {
+        _ = connection.execute_batch("ROLLBACK;");
+    }
+    ordered
+}
 
 /// Everything one launch reads back from disk.
 pub struct StoredData {
@@ -458,7 +499,7 @@ impl HostDatabase {
             .connection
             .prepare(
                 "SELECT id, category_id, name, command, scope_group_id, scope_host_id, \
-                 run_on_click FROM snippets ORDER BY id",
+                 run_on_click, sort_order FROM snippets ORDER BY id",
             )?
             .query_map([], |row| {
                 let id: i64 = row.get(0)?;
@@ -468,6 +509,7 @@ impl HostDatabase {
                 let group: Option<i64> = row.get(4)?;
                 let host: Option<i64> = row.get(5)?;
                 let run_on_click: bool = row.get(6)?;
+                let sort_order: i64 = row.get(7)?;
                 let mut draft = SnippetDraft::new(
                     name,
                     command,
@@ -480,7 +522,7 @@ impl HostDatabase {
                     (None, Some(host)) => SnippetScope::Host(HostId(from_sql(host))),
                     (None, None) => SnippetScope::All,
                 };
-                Ok(Snippet::new(SnippetId(from_sql(id)), draft))
+                Ok(Snippet::new(SnippetId(from_sql(id)), draft).with_sort_order(sort_order))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
 
@@ -853,7 +895,7 @@ impl HostDatabase {
         let (group, host) = scope_columns(snippet.scope);
         self.connection.execute(
             "INSERT INTO snippets (id, category_id, name, command, scope_group_id, scope_host_id, \
-             run_on_click) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+             run_on_click, sort_order) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 to_sql(snippet.id.0),
                 snippet.category.map(|id| to_sql(id.0)),
@@ -862,6 +904,7 @@ impl HostDatabase {
                 group,
                 host,
                 snippet.run_on_click,
+                snippet.sort_order,
             ],
         )?;
         Ok(())
@@ -871,7 +914,8 @@ impl HostDatabase {
         let (group, host) = scope_columns(snippet.scope);
         self.connection.execute(
             "UPDATE snippets SET category_id = ?2, name = ?3, command = ?4, \
-             scope_group_id = ?5, scope_host_id = ?6, run_on_click = ?7 WHERE id = ?1",
+             scope_group_id = ?5, scope_host_id = ?6, run_on_click = ?7, sort_order = ?8 \
+             WHERE id = ?1",
             params![
                 to_sql(snippet.id.0),
                 snippet.category.map(|id| to_sql(id.0)),
@@ -880,6 +924,7 @@ impl HostDatabase {
                 group,
                 host,
                 snippet.run_on_click,
+                snippet.sort_order,
             ],
         )?;
         Ok(())
@@ -1323,6 +1368,54 @@ CREATE INDEX forwards_host_id ON forwards(host_id);";
         let data = db.load().unwrap();
         assert_eq!(data.hosts.len(), 1);
         assert!(data.snippets.is_empty());
+    }
+
+    #[test]
+    fn a_version_14_file_keeps_its_snippets_in_the_order_they_were_listed() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("shellrs.db");
+        {
+            let old = Connection::open(&path).unwrap();
+            old.execute_batch(&format!(
+                "BEGIN;\n{SCHEMA_13}\nPRAGMA user_version = 13;\nCOMMIT;"
+            ))
+            .unwrap();
+            // Version 14 is 13 and the step that made it, as written then.
+            let Step::Sql(step) = STEPS[0].1 else {
+                panic!("step 13 is SQL")
+            };
+            old.execute_batch(step).unwrap();
+            old.execute_batch(
+                "INSERT INTO snippet_categories (id, name) VALUES (1, 'Docker');
+INSERT INTO snippets (id, category_id, name, command) VALUES
+    (1, 1, 'ps', 'docker ps'),
+    (2, NULL, 'uptime', 'uptime'),
+    (3, 1, 'Images', 'docker images'),
+    (4, NULL, 'df', 'df -h'),
+    (5, 1, 'logs', 'docker logs');",
+            )
+            .unwrap();
+        }
+
+        let db = HostDatabase::open(&path).unwrap();
+        let version: i64 = db
+            .connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        assert!(dir.path().join("shellrs.db.v14.bak").exists());
+        let fresh = HostDatabase::in_memory().unwrap();
+        assert_eq!(schema_of(&db.connection), schema_of(&fresh.connection));
+        let orders: Vec<(u64, i64)> = db
+            .load()
+            .unwrap()
+            .snippets
+            .iter()
+            .map(|snippet| (snippet.id.0, snippet.sort_order))
+            .collect();
+        // By name in each category, regardless of case: Images, logs, ps;
+        // df, uptime.
+        assert_eq!(orders, [(1, 2), (2, 1), (3, 0), (4, 0), (5, 1)]);
     }
 
     fn snippet(id: u64, name: &str, category: Option<u64>, scope: SnippetScope) -> Snippet {

@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::rc::Rc;
 
@@ -14,14 +14,19 @@ use gpui_kit::component::{
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
-use super::model::{SnippetRow, rows};
+use super::model::{SnippetLine, lines, rows};
 use crate::app::{
     CatalogIcon, CopyCommand, DeleteSnippet, DeleteSnippetCategory, EditSnippet, EnterCommand,
-    NewSnippet, NewSnippetCategory, NewSnippetIn, RenameSnippetCategory, ToggleSnippetCategory,
+    MoveSnippet, NewSnippet, NewSnippetCategory, NewSnippetIn, RenameSnippetCategory,
+    ToggleSnippetCategory,
 };
-use crate::host::{HostStore, Snippet, SnippetCategoryId, SnippetId};
+use crate::host::{HostStore, Snippet, SnippetCategoryId, SnippetDrop, SnippetId};
 use crate::i18n::{UiLocale, t, tn};
 use crate::shared::{command_tooltip, one_line};
+
+/// From this wide the cards go two to a line: the sidebar opens at 320 px
+/// with one, and a card keeps room for a name and a command beside another.
+const TWO_COLUMNS_FROM: Pixels = px(480.);
 
 /// 命令片段: the commands kept for every host, in categories one level
 /// deep. A click puts one on the input line of the SSH terminal in front to
@@ -38,12 +43,16 @@ pub struct SnippetPanel {
     folded: HashSet<Option<SnippetCategoryId>>,
     list: ListState,
     /// The lines the list was last told about.
-    rows: Vec<SnippetRow>,
+    rows: Vec<SnippetLine>,
+    /// How wide the list was last frame, which decides its columns.
+    width: Rc<Cell<Option<Pixels>>>,
     /// The search changed: back to the top.
     back_to_top: bool,
     /// What a right click landed on, for the list's menu; `None` off every
     /// line.
     menu_hit: Rc<RefCell<Option<MenuHit>>>,
+    /// Where the snippet being dragged would land, as the pointer last said.
+    drop_target: Rc<Cell<Option<SnippetDrop>>>,
     /// The workspace's focus handle: the panel's buttons dispatch on it, so
     /// they work whatever is focused.
     dispatch: FocusHandle,
@@ -91,8 +100,10 @@ impl SnippetPanel {
             folded: HashSet::new(),
             list: ListState::new(0, ListAlignment::Top, px(400.)),
             rows: Vec::new(),
+            width: Rc::new(Cell::new(None)),
             back_to_top: false,
             menu_hit: Rc::new(RefCell::new(None)),
+            drop_target: Rc::new(Cell::new(None)),
             dispatch,
             focus_handle: cx.focus_handle(),
             _subscriptions: subscriptions,
@@ -109,7 +120,7 @@ impl SnippetPanel {
 
     /// Tell the list about `rows` when they are not the ones it has; back
     /// at the top when the search changed.
-    fn sync_list(&mut self, rows: &[SnippetRow]) {
+    fn sync_list(&mut self, rows: &[SnippetLine]) {
         if std::mem::take(&mut self.back_to_top) {
             self.list.reset(rows.len());
         } else if self.rows != rows {
@@ -235,11 +246,18 @@ impl Render for SnippetPanel {
                 .map(|category| (category.id, category.name.clone()))
                 .collect(),
         );
-        let rows = rows(
-            store.snippet_categories(),
-            &snippets,
-            &self.query,
-            &self.folded,
+        let columns = match self.width.get() {
+            Some(width) if width >= TWO_COLUMNS_FROM => 2,
+            _ => 1,
+        };
+        let rows = lines(
+            &rows(
+                store.snippet_categories(),
+                &snippets,
+                &self.query,
+                &self.folded,
+            ),
+            columns,
         );
         let nothing = snippets.is_empty() && names.is_empty();
         self.sync_list(&rows);
@@ -282,11 +300,17 @@ impl Render for SnippetPanel {
                         self.focus_handle.clone(),
                         self.dispatch.clone(),
                     );
+                    // A search shows only some of a category: no place to
+                    // drop among them.
+                    let drag = self.query.trim().is_empty().then(|| Dragging {
+                        target: self.drop_target.clone(),
+                        columns,
+                    });
                     list.child(
                         gpui_kit::list(self.list.clone(), move |index, _, cx| {
                             let last = index + 1 == rows.len();
-                            match rows[index] {
-                                SnippetRow::Category { id, count, folded } => {
+                            match &rows[index] {
+                                &SnippetLine::Category { id, count, folded } => {
                                     let name = id
                                         .and_then(|id| names.iter().find(|(each, _)| *each == id))
                                         .map_or_else(
@@ -304,28 +328,38 @@ impl Render for SnippetPanel {
                                         hit.clone(),
                                         focus.clone(),
                                         dispatch.clone(),
+                                        drag.is_some(),
                                         cx,
                                     )
                                     .into_any_element()
                                 }
-                                SnippetRow::Snippet(id) => {
-                                    let Some(snippet) =
-                                        snippets.iter().find(|snippet| snippet.id == id)
-                                    else {
-                                        return div().into_any_element();
-                                    };
-                                    div()
+                                SnippetLine::Snippets(ids) => {
+                                    let cards = ids.iter().filter_map(|id| {
+                                        snippets.iter().find(|snippet| snippet.id == *id)
+                                    });
+                                    h_flex()
+                                        .w_full()
+                                        .items_stretch()
+                                        .gap_2()
                                         .px_3()
                                         .pt_2()
                                         // The last one clears the bottom.
                                         .when(last, |row| row.pb_3())
-                                        .child(render_snippet(
-                                            snippet,
-                                            hit.clone(),
-                                            focus.clone(),
-                                            dispatch.clone(),
-                                            cx,
-                                        ))
+                                        .children(cards.map(|snippet| {
+                                            div().flex_1().min_w_0().child(render_snippet(
+                                                snippet,
+                                                hit.clone(),
+                                                focus.clone(),
+                                                dispatch.clone(),
+                                                drag.clone(),
+                                                cx,
+                                            ))
+                                        }))
+                                        // A card alone on its line keeps a
+                                        // column's width.
+                                        .children(
+                                            (ids.len()..columns).map(|_| div().flex_1().min_w_0()),
+                                        )
                                         .into_any_element()
                                 }
                             }
@@ -335,6 +369,23 @@ impl Render for SnippetPanel {
                 }
             })
             .vertical_scrollbar(&self.list)
+            // How wide the list was last frame decides its columns; a new
+            // width takes effect on the next frame.
+            .child({
+                let (width, panel) = (self.width.clone(), cx.entity_id());
+                canvas(
+                    move |bounds, window, _| {
+                        if width.replace(Some(bounds.size.width)) != Some(bounds.size.width) {
+                            window.on_next_frame(move |_, cx| cx.notify(panel));
+                        }
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .top_0()
+                .left_0()
+                .size_full()
+            })
             .capture_any_mouse_down(move |event, _, _| {
                 if matches!(event.button, MouseButton::Left | MouseButton::Right) {
                     clear_hit.replace(None);
@@ -442,12 +493,14 @@ struct Heading {
     last: bool,
 }
 
-/// A category's heading: a click folds it away or unfolds it.
+/// A category's heading: a click folds it away or unfolds it, and a snippet
+/// dropped on it goes last in the category.
 fn render_category(
     heading: Heading,
     menu_hit: Rc<RefCell<Option<MenuHit>>>,
     focus: FocusHandle,
     dispatch: FocusHandle,
+    droppable: bool,
     cx: &App,
 ) -> impl IntoElement {
     let Heading {
@@ -469,8 +522,21 @@ fn render_category(
         .when(last, |line| line.pb_3())
         .gap_1p5()
         .cursor_pointer()
-        .on_click(move |_, window, cx| {
-            dispatch.dispatch_action(&ToggleSnippetCategory(id), window, cx)
+        .on_click({
+            let dispatch = dispatch.clone();
+            move |_, window, cx| dispatch.dispatch_action(&ToggleSnippetCategory(id), window, cx)
+        })
+        .when(droppable, |line| {
+            line.drag_over::<SnippetDrag>(|style, _, _, cx| {
+                style
+                    .bg(cx.theme().accent)
+                    .text_color(cx.theme().accent_foreground)
+            })
+            .on_drop(move |drag: &SnippetDrag, window, cx| {
+                let to = SnippetDrop::Into(id);
+                dispatch.dispatch_action(&MoveSnippet { id: drag.id, to }, window, cx);
+                cx.stop_propagation();
+            })
         })
         .on_mouse_down(MouseButton::Right, move |_, window, cx| {
             menu_hit.replace(Some(MenuHit::Category(id)));
@@ -513,6 +579,7 @@ fn render_snippet(
     menu_hit: Rc<RefCell<Option<MenuHit>>>,
     focus: FocusHandle,
     dispatch: FocusHandle,
+    drag: Option<Dragging>,
     cx: &App,
 ) -> impl IntoElement {
     let id = snippet.id;
@@ -543,6 +610,7 @@ fn render_snippet(
         } else {
             format!("{} · {line}", snippet.name)
         })
+        .w_full()
         .gap_2()
         .py_2()
         .pl_3()
@@ -570,6 +638,9 @@ fn render_snippet(
         })
         // The whole of a command too long for its line.
         .when_some(tooltip, |card, tooltip| card.tooltip(tooltip))
+        .when_some(drag, |card, drag| {
+            draggable(card, id, snippet.name.clone(), drag, dispatch.clone())
+        })
         .child(
             v_flex()
                 .flex_1()
@@ -622,4 +693,93 @@ fn render_snippet(
                         }),
                 ),
         )
+}
+
+/// What dragging a card needs to know: where the drop would go, as the
+/// pointer last said, and how the cards are laid out.
+#[derive(Clone)]
+struct Dragging {
+    target: Rc<Cell<Option<SnippetDrop>>>,
+    columns: usize,
+}
+
+/// A card on the move: what follows the pointer is its name.
+#[derive(Clone)]
+struct SnippetDrag {
+    id: SnippetId,
+    name: SharedString,
+}
+
+impl Render for SnippetDrag {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .px_2()
+            .py_1()
+            .rounded(cx.theme().radius)
+            .bg(cx.theme().popover)
+            .text_color(cx.theme().popover_foreground)
+            .border_1()
+            .border_color(cx.theme().border)
+            .text_sm()
+            .child(self.name.clone())
+    }
+}
+
+/// Let `card` be dragged, and take another dropped on it: before it when
+/// the pointer is on its first half (the top in one column, the left in
+/// two), after it otherwise. That edge shows where it will land.
+fn draggable<E: StatefulInteractiveElement>(
+    card: E,
+    id: SnippetId,
+    name: SharedString,
+    drag: Dragging,
+    dispatch: FocusHandle,
+) -> E {
+    let Dragging { target, columns } = drag;
+    let (moving, landing) = (target.clone(), target.clone());
+    let across = columns > 1;
+    card.on_drag(SnippetDrag { id, name }, |drag, _, _, cx| {
+        cx.new(|_| drag.clone())
+    })
+    .on_drag_move(move |event: &DragMoveEvent<SnippetDrag>, _, cx| {
+        let (bounds, position) = (event.bounds, event.event.position);
+        if !bounds.contains(&position) || event.drag(cx).id == id {
+            return;
+        }
+        let after = if across {
+            position.x - bounds.left() > bounds.size.width / 2.
+        } else {
+            position.y - bounds.top() > bounds.size.height / 2.
+        };
+        moving.set(Some(if after {
+            SnippetDrop::After(id)
+        } else {
+            SnippetDrop::Before(id)
+        }));
+    })
+    .drag_over::<SnippetDrag>(move |style, drag, _, cx| {
+        let edge = cx.theme().primary;
+        match target.get() {
+            _ if drag.id == id => style,
+            Some(SnippetDrop::Before(at)) if at == id && across => {
+                style.border_l_2().border_color(edge)
+            }
+            Some(SnippetDrop::Before(at)) if at == id => style.border_t_2().border_color(edge),
+            Some(SnippetDrop::After(at)) if at == id && across => {
+                style.border_r_2().border_color(edge)
+            }
+            Some(SnippetDrop::After(at)) if at == id => style.border_b_2().border_color(edge),
+            _ => style,
+        }
+    })
+    .on_drop(move |drag: &SnippetDrag, window, cx| {
+        if let Some(to @ (SnippetDrop::Before(at) | SnippetDrop::After(at))) = landing.get()
+            && at == id
+            && drag.id != id
+        {
+            dispatch.dispatch_action(&MoveSnippet { id: drag.id, to }, window, cx);
+        }
+        landing.set(None);
+        cx.stop_propagation();
+    })
 }

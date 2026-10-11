@@ -9,7 +9,8 @@ use crate::{
     editor::EditorId,
     explorer::{ExplorerId, FileSizeFormat, PaneSide},
     host::{
-        CredentialId, ForwardId, GroupId, HostId, HostNode, NodeDrop, SnippetCategoryId, SnippetId,
+        CredentialId, ForwardId, GroupId, HostId, HostNode, NodeDrop, SnippetCategoryId,
+        SnippetDrop, SnippetId,
     },
     monitor::MonitorDetail,
     processes::ProcessSort,
@@ -362,6 +363,14 @@ pub struct RemoveDockerObject {
 pub struct EnterCommand {
     pub command: String,
     pub run: bool,
+}
+
+/// Put a snippet where it was dragged in the 命令片段 list.
+#[derive(Action, Clone, PartialEq, Eq)]
+#[action(namespace = shellrs, no_json)]
+pub struct MoveSnippet {
+    pub id: SnippetId,
+    pub to: SnippetDrop,
 }
 
 /// One tab of the center area, by the identity of what it shows.

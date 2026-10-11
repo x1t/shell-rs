@@ -18,8 +18,8 @@ pub enum SnippetRow {
     Snippet(SnippetId),
 }
 
-/// The list: each category by name with its snippets by name, and the
-/// snippets of none last under 未分类. Without categories there are no
+/// The list: each category by name with its snippets in the order they
+/// were dragged into, and the snippets of none last under 未分类. Without categories there are no
 /// headings at all. A search lists what matches, in every category, folded
 /// or not, and leaves out the categories with nothing that does.
 pub fn rows(
@@ -33,7 +33,7 @@ pub fn rows(
         .iter()
         .filter(|snippet| snippet.matches(query))
         .collect();
-    matching.sort_by(|a, b| by_name((&a.name, a.id.0), (&b.name, b.id.0)));
+    matching.sort_by(|a, b| Snippet::in_order(a, b));
     let in_category = |category: Option<SnippetCategoryId>| -> Vec<SnippetId> {
         matching
             .iter()
@@ -71,6 +71,36 @@ pub fn rows(
     }
     section(None, false);
     rows
+}
+
+/// A line of the list as drawn: a heading, or up to as many snippets side
+/// by side as there are columns.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SnippetLine {
+    Category {
+        id: Option<SnippetCategoryId>,
+        count: usize,
+        folded: bool,
+    },
+    Snippets(Vec<SnippetId>),
+}
+
+/// `rows` laid out in `columns`: a heading has a line to itself, and the
+/// snippets after it fill the lines left to right.
+pub fn lines(rows: &[SnippetRow], columns: usize) -> Vec<SnippetLine> {
+    let mut lines = Vec::new();
+    for row in rows {
+        match *row {
+            SnippetRow::Category { id, count, folded } => {
+                lines.push(SnippetLine::Category { id, count, folded })
+            }
+            SnippetRow::Snippet(id) => match lines.last_mut() {
+                Some(SnippetLine::Snippets(ids)) if ids.len() < columns => ids.push(id),
+                _ => lines.push(SnippetLine::Snippets(vec![id])),
+            },
+        }
+    }
+    lines
 }
 
 #[cfg(test)]
@@ -162,5 +192,51 @@ mod tests {
             rows(&categories, &snippets, "S", &folded),
             [heading(Some(2), 2, false), item(3), item(2)]
         );
+    }
+
+    #[test]
+    fn snippets_keep_the_order_they_were_put_in() {
+        let snippets = [
+            snippet(1, "uptime", None).with_sort_order(1),
+            snippet(2, "df", None).with_sort_order(2),
+            snippet(3, "ps", None).with_sort_order(0),
+        ];
+        assert_eq!(
+            rows(&[], &snippets, "", &HashSet::new()),
+            [item(3), item(1), item(2)]
+        );
+    }
+
+    #[test]
+    fn in_two_columns_the_snippets_pair_up_under_their_heading() {
+        let rows = [
+            heading(Some(2), 3, false),
+            item(1),
+            item(2),
+            item(3),
+            heading(Some(1), 0, false),
+            heading(None, 1, false),
+            item(4),
+        ];
+        let line =
+            |ids: &[u64]| SnippetLine::Snippets(ids.iter().map(|id| SnippetId(*id)).collect());
+        let title = |id: Option<u64>, count| SnippetLine::Category {
+            id: id.map(SnippetCategoryId),
+            count,
+            folded: false,
+        };
+        assert_eq!(
+            lines(&rows, 2),
+            [
+                title(Some(2), 3),
+                line(&[1, 2]),
+                line(&[3]),
+                title(Some(1), 0),
+                title(None, 1),
+                line(&[4]),
+            ]
+        );
+        // One column is a line each.
+        assert_eq!(lines(&[item(1), item(2)], 1), [line(&[1]), line(&[2])]);
     }
 }

@@ -5,7 +5,7 @@ use gpui_kit::{Context, SharedString};
 
 use super::{Change, HostStore};
 use crate::host::{
-    Snippet, SnippetCategory, SnippetCategoryId, SnippetDraft, SnippetId, SnippetScope,
+    Snippet, SnippetCategory, SnippetCategoryId, SnippetDraft, SnippetDrop, SnippetId, SnippetScope,
 };
 
 impl HostStore {
@@ -46,12 +46,82 @@ impl HostStore {
         id
     }
 
+    /// A new snippet goes last in its category.
     pub fn insert_snippet_unnotified(&mut self, draft: SnippetDraft) -> SnippetId {
         let id = SnippetId(self.next_snippet_id);
         self.next_snippet_id += 1;
         let draft = self.normalized_snippet(draft);
-        self.snippets.push(Snippet::new(id, draft));
+        let order = self.next_snippet_order(draft.category);
+        self.snippets
+            .push(Snippet::new(id, draft).with_sort_order(order));
         id
+    }
+
+    /// The sort order after every snippet in `category`.
+    fn next_snippet_order(&self, category: Option<SnippetCategoryId>) -> i64 {
+        self.snippets
+            .iter()
+            .filter(|snippet| snippet.category == category)
+            .map(|snippet| snippet.sort_order + 1)
+            .max()
+            .unwrap_or(0)
+    }
+
+    /// Put a snippet where it was dragged, in that category, and renumber the
+    /// category's snippets from 0. What changed is written through.
+    pub fn move_snippet(&mut self, id: SnippetId, to: SnippetDrop, cx: &mut Context<Self>) {
+        for moved in self.move_snippet_unnotified(id, to) {
+            if let Some(snippet) = self.snippet(moved) {
+                self.persist(Change::SaveSnippet, cx, |db| db.update_snippet(snippet));
+            }
+        }
+        cx.notify();
+    }
+
+    /// [`Self::move_snippet`] in memory; the snippets whose place changed.
+    pub fn move_snippet_unnotified(&mut self, id: SnippetId, to: SnippetDrop) -> Vec<SnippetId> {
+        let category = match to {
+            SnippetDrop::Into(category) => category,
+            SnippetDrop::Before(other) | SnippetDrop::After(other) => match self.snippet(other) {
+                Some(other) => other.category,
+                None => return Vec::new(),
+            },
+        };
+        if self.snippet(id).is_none()
+            || to == SnippetDrop::Before(id)
+            || to == SnippetDrop::After(id)
+        {
+            return Vec::new();
+        }
+        let mut order: Vec<&Snippet> = self
+            .snippets
+            .iter()
+            .filter(|snippet| snippet.category == category && snippet.id != id)
+            .collect();
+        order.sort_by(|a, b| Snippet::in_order(a, b));
+        let mut order: Vec<SnippetId> = order.into_iter().map(|snippet| snippet.id).collect();
+        let at = match to {
+            SnippetDrop::Before(other) => order.iter().position(|each| *each == other),
+            SnippetDrop::After(other) => order
+                .iter()
+                .position(|each| *each == other)
+                .map(|at| at + 1),
+            SnippetDrop::Into(_) => None,
+        };
+        order.insert(at.unwrap_or(order.len()), id);
+        let mut changed = Vec::new();
+        for (place, each) in order.into_iter().enumerate() {
+            let Some(snippet) = self.snippets.iter_mut().find(|snippet| snippet.id == each) else {
+                continue;
+            };
+            let place = place as i64;
+            if snippet.sort_order != place || snippet.category != category {
+                snippet.sort_order = place;
+                snippet.category = category;
+                changed.push(each);
+            }
+        }
+        changed
     }
 
     pub fn update_snippet(
@@ -70,12 +140,22 @@ impl HostStore {
         true
     }
 
+    /// An edit keeps the snippet's place, unless it moves it to another
+    /// category: there it goes last.
     pub fn update_snippet_unnotified(&mut self, id: SnippetId, draft: SnippetDraft) -> bool {
         let draft = self.normalized_snippet(draft);
+        let Some(old) = self.snippet(id) else {
+            return false;
+        };
+        let order = if old.category == draft.category {
+            old.sort_order
+        } else {
+            self.next_snippet_order(draft.category)
+        };
         let Some(snippet) = self.snippets.iter_mut().find(|snippet| snippet.id == id) else {
             return false;
         };
-        *snippet = Snippet::new(id, draft);
+        *snippet = Snippet::new(id, draft).with_sort_order(order);
         true
     }
 
@@ -281,6 +361,102 @@ mod tests {
         // Kept to what is not there, a snippet is for every host.
         let stray = store.insert_snippet_unnotified(scoped("stray", SnippetScope::Host(host)));
         assert_eq!(store.snippet(stray).unwrap().scope, SnippetScope::All);
+    }
+
+    /// The snippets of `category` in the order the list shows them.
+    fn listed(store: &HostStore, category: Option<SnippetCategoryId>) -> Vec<String> {
+        let mut snippets: Vec<&Snippet> = store
+            .snippets()
+            .iter()
+            .filter(|snippet| snippet.category == category)
+            .collect();
+        snippets.sort_by(|a, b| Snippet::in_order(a, b));
+        snippets
+            .iter()
+            .map(|snippet| snippet.name.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn new_snippets_go_last_and_a_drag_puts_one_anywhere() {
+        let mut store = HostStore::empty();
+        let docker = store.insert_snippet_category_unnotified("Docker");
+        let ps = store.insert_snippet_unnotified(draft("ps", Some(docker)));
+        let images = store.insert_snippet_unnotified(draft("images", Some(docker)));
+        let logs = store.insert_snippet_unnotified(draft("logs", Some(docker)));
+        let df = store.insert_snippet_unnotified(draft("df", None));
+        // In the order they were made, not by name.
+        assert_eq!(listed(&store, Some(docker)), ["ps", "images", "logs"]);
+
+        store.move_snippet_unnotified(logs, SnippetDrop::Before(ps));
+        assert_eq!(listed(&store, Some(docker)), ["logs", "ps", "images"]);
+        store.move_snippet_unnotified(logs, SnippetDrop::After(images));
+        assert_eq!(listed(&store, Some(docker)), ["ps", "images", "logs"]);
+
+        // Into another category, beside one there or last in it.
+        let changed = store.move_snippet_unnotified(images, SnippetDrop::Before(df));
+        assert_eq!(listed(&store, None), ["images", "df"]);
+        assert_eq!(listed(&store, Some(docker)), ["ps", "logs"]);
+        assert!(changed.contains(&images) && changed.contains(&df));
+        store.move_snippet_unnotified(df, SnippetDrop::Into(Some(docker)));
+        assert_eq!(listed(&store, Some(docker)), ["ps", "logs", "df"]);
+
+        // Onto itself, or beside one that is gone, nothing moves.
+        assert!(
+            store
+                .move_snippet_unnotified(ps, SnippetDrop::Before(ps))
+                .is_empty()
+        );
+        assert!(
+            store
+                .move_snippet_unnotified(ps, SnippetDrop::After(SnippetId(99)))
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn an_edit_keeps_the_place_unless_it_changes_the_category() {
+        let mut store = HostStore::empty();
+        let docker = store.insert_snippet_category_unnotified("Docker");
+        let ps = store.insert_snippet_unnotified(draft("ps", Some(docker)));
+        store.insert_snippet_unnotified(draft("images", Some(docker)));
+        let df = store.insert_snippet_unnotified(draft("df", None));
+        store.insert_snippet_unnotified(draft("uptime", None));
+
+        store.update_snippet_unnotified(ps, draft("容器", Some(docker)));
+        assert_eq!(listed(&store, Some(docker)), ["容器", "images"]);
+        store.update_snippet_unnotified(df, draft("df", Some(docker)));
+        assert_eq!(listed(&store, Some(docker)), ["容器", "images", "df"]);
+    }
+
+    #[test]
+    fn a_drag_is_written_through_and_comes_back() {
+        let database = HostDatabase::in_memory().unwrap();
+        let mut store = HostStore::load(database).unwrap();
+        let ps = store.insert_snippet_unnotified(draft("ps", None));
+        let df = store.insert_snippet_unnotified(draft("df", None));
+        for snippet in store.snippets() {
+            store
+                .database
+                .as_ref()
+                .unwrap()
+                .insert_snippet(snippet)
+                .unwrap();
+        }
+        for moved in store.move_snippet_unnotified(df, SnippetDrop::Before(ps)) {
+            let snippet = store.snippet(moved).unwrap();
+            store
+                .database
+                .as_ref()
+                .unwrap()
+                .update_snippet(snippet)
+                .unwrap();
+        }
+        let data = store.database.as_ref().unwrap().load().unwrap();
+        let mut back: Vec<&Snippet> = data.snippets.iter().collect();
+        back.sort_by(|a, b| Snippet::in_order(a, b));
+        let back: Vec<&str> = back.iter().map(|snippet| snippet.name.as_ref()).collect();
+        assert_eq!(back, ["df", "ps"]);
     }
 
     #[test]

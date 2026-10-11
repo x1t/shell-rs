@@ -29,6 +29,15 @@ pub enum SnippetScope {
     Host(HostId),
 }
 
+/// Where a snippet dragged in the list lands: beside another, or last in a
+/// category (`None` is 未分类).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SnippetDrop {
+    Before(SnippetId),
+    After(SnippetId),
+    Into(Option<SnippetCategoryId>),
+}
+
 /// What the snippet form edits.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SnippetDraft {
@@ -92,6 +101,9 @@ pub struct Snippet {
     pub category: Option<SnippetCategoryId>,
     pub scope: SnippetScope,
     pub run_on_click: bool,
+    /// Where it is in its category, smallest first; the user drags them
+    /// into order. Ties go by name.
+    pub sort_order: i64,
 }
 
 impl Snippet {
@@ -103,7 +115,20 @@ impl Snippet {
             category: draft.category,
             scope: draft.scope,
             run_on_click: draft.run_on_click,
+            sort_order: 0,
         }
+    }
+
+    pub fn with_sort_order(mut self, sort_order: i64) -> Self {
+        self.sort_order = sort_order;
+        self
+    }
+
+    /// The order the list shows snippets of one category in.
+    pub fn in_order(a: &Snippet, b: &Snippet) -> Ordering {
+        a.sort_order
+            .cmp(&b.sort_order)
+            .then_with(|| by_name((&a.name, a.id.0), (&b.name, b.id.0)))
     }
 
     pub fn draft(&self) -> SnippetDraft {

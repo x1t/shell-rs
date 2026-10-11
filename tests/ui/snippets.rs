@@ -2,24 +2,29 @@
 //! in categories, and puts them on the SSH terminal's line.
 
 use crate::support::*;
+use gpui_kit::component::dock::DockPlacement;
 use shellrs::app::{
     DeleteSnippet, DeleteSnippetCategory, EditSnippet, NewSnippetCategory, NewSnippetIn,
     RenameSnippetCategory,
 };
-use shellrs::host::{SnippetCategoryId, SnippetDraft, SnippetId};
+use shellrs::host::{SnippetCategoryId, SnippetDraft, SnippetDrop, SnippetId};
 
-/// Two categories and a snippet of none, made in an order the list does
-/// not keep: Docker's 「容器」 and 「镜像」, 日志's 「系统日志」, and 「磁盘」.
+/// Two categories, made in an order the list does not keep (it goes by
+/// name), and a snippet of none: Docker's 「容器」 and 「镜像」, dragged into
+/// that order, 日志's 「系统日志」, and 「磁盘」.
 fn store_with_snippets() -> HostStore {
     let mut store = HostStore::seed();
     let logs = store.insert_snippet_category_unnotified("日志");
     let docker = store.insert_snippet_category_unnotified("Docker");
-    store.insert_snippet_unnotified(SnippetDraft::new("镜像", "docker images", Some(docker)));
+    let images =
+        store.insert_snippet_unnotified(SnippetDraft::new("镜像", "docker images", Some(docker)));
     store.insert_snippet_unnotified(
         SnippetDraft::new("系统日志", "journalctl -f", Some(logs)).with_run_on_click(true),
     );
     store.insert_snippet_unnotified(SnippetDraft::new("磁盘", "df -h", None));
-    store.insert_snippet_unnotified(SnippetDraft::new("容器", "docker ps -a", Some(docker)));
+    let containers =
+        store.insert_snippet_unnotified(SnippetDraft::new("容器", "docker ps -a", Some(docker)));
+    store.move_snippet_unnotified(containers, SnippetDrop::Before(images));
     store
 }
 
@@ -372,4 +377,104 @@ async fn the_sidebar_follows_a_switch_to_english(cx: &mut TestAppContext) {
             Some("Uncategorized 1")
         );
     });
+}
+
+#[gpui_kit::test]
+async fn a_wide_sidebar_puts_the_snippets_two_to_a_line(cx: &mut TestAppContext) {
+    let (handle, workspace, _) = open_snippets(cx, store_with_snippets()).await;
+    // At the width it opens with, one under the other.
+    in_frame(cx, handle, |window, _| {
+        assert!(top(window, ("snippet", CONTAINERS)) < top(window, ("snippet", IMAGES)));
+    });
+
+    cx.update_window(handle.into(), |_, window, cx| {
+        let area = workspace.read(cx).dock_area().clone();
+        area.update(cx, |area, cx| {
+            area.set_dock_size(DockPlacement::Right, px(560.), window, cx)
+        });
+    })
+    .unwrap();
+    // The list goes by the width it had last frame.
+    in_frame(cx, handle, |window, cx| window.simulate_next_frame(cx));
+
+    in_frame(cx, handle, |window, _| {
+        let containers = window.find(("snippet", CONTAINERS)).bounds();
+        let images = window.find(("snippet", IMAGES)).bounds();
+        // Docker's two side by side, as wide as each other.
+        assert_eq!(containers.top(), images.top());
+        assert!(containers.left() < images.left());
+        assert_eq!(containers.size.width, images.size.width);
+        // A heading still has its line, and a snippet alone on its line
+        // keeps a column's width.
+        assert!(top(window, "snippet-category:1") > containers.top());
+        let journal = window.find(("snippet", JOURNAL)).bounds();
+        assert_eq!(journal.size.width, containers.size.width);
+    });
+}
+
+/// The snippets of `category` in the order the list shows them, by name.
+fn order_in(
+    workspace: &Entity<Workspace>,
+    category: Option<u64>,
+    cx: &mut TestAppContext,
+) -> Vec<String> {
+    workspace.read_with(cx, |workspace, cx| {
+        let mut snippets: Vec<_> = workspace
+            .store()
+            .read(cx)
+            .snippets()
+            .iter()
+            .filter(|snippet| snippet.category == category.map(SnippetCategoryId))
+            .cloned()
+            .collect();
+        snippets.sort_by(shellrs::host::Snippet::in_order);
+        snippets
+            .iter()
+            .map(|snippet| snippet.name.to_string())
+            .collect()
+    })
+}
+
+#[gpui_kit::test]
+async fn a_snippet_is_dragged_into_place_and_into_another_category(cx: &mut TestAppContext) {
+    let (handle, workspace, _) = open_snippets(cx, store_with_snippets()).await;
+    assert_eq!(order_in(&workspace, Some(DOCKER), cx), ["容器", "镜像"]);
+
+    // Onto the top half of another card: before it.
+    in_frame(cx, handle, |window, cx| {
+        window
+            .within("snippets-list")
+            .drag_to(("snippet", IMAGES), ("snippet", CONTAINERS), cx)
+    });
+    assert_eq!(order_in(&workspace, Some(DOCKER), cx), ["镜像", "容器"]);
+    in_frame(cx, handle, |window, _| {
+        assert!(top(window, ("snippet", IMAGES)) < top(window, ("snippet", CONTAINERS)));
+    });
+
+    // Onto a category's heading: last in it.
+    in_frame(cx, handle, |window, cx| {
+        window
+            .within("snippets-list")
+            .drag_to(("snippet", DISK), "snippet-category:2", cx)
+    });
+    assert_eq!(
+        order_in(&workspace, Some(DOCKER), cx),
+        ["镜像", "容器", "磁盘"]
+    );
+    assert!(order_in(&workspace, None, cx).is_empty());
+}
+
+#[gpui_kit::test]
+async fn while_searching_nothing_is_moved_by_a_drag(cx: &mut TestAppContext) {
+    let (handle, workspace, _) = open_snippets(cx, store_with_snippets()).await;
+    in_frame(cx, handle, |window, cx| {
+        window.click("snippets-search", cx);
+        window.input("docker", cx);
+    });
+    in_frame(cx, handle, |window, cx| {
+        window
+            .within("snippets-list")
+            .drag_to(("snippet", IMAGES), ("snippet", CONTAINERS), cx)
+    });
+    assert_eq!(order_in(&workspace, Some(DOCKER), cx), ["容器", "镜像"]);
 }

@@ -6,7 +6,7 @@ use std::rc::Rc;
 use gpui_kit::*;
 
 use crate::app::{
-    DeleteSnippet, DeleteSnippetCategory, EditSnippet, NewSnippet, NewSnippetCategory,
+    DeleteSnippet, DeleteSnippetCategory, EditSnippet, MoveSnippet, NewSnippet, NewSnippetCategory,
     NewSnippetIn, RenameSnippetCategory, ToggleSnippetCategory,
 };
 use crate::i18n::tn;
@@ -151,5 +151,17 @@ impl Workspace {
         let id = action.0;
         self.tools
             .update(cx, |tools, cx| tools.toggle_snippet_category(id, cx));
+    }
+
+    /// A snippet dropped in the list: it goes there.
+    pub(super) fn on_move_snippet(
+        &mut self,
+        action: &MoveSnippet,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let MoveSnippet { id, to } = *action;
+        self.store
+            .update(cx, |store, cx| store.move_snippet(id, to, cx));
     }
 }
