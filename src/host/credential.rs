@@ -178,6 +178,8 @@ pub struct Credential {
     pub key_path: Option<SharedString>,
     /// Position in the credential list.
     pub sort_order: i64,
+    /// The same on every device (云同步).
+    pub sync_id: PublicId,
 }
 
 impl Credential {
@@ -192,6 +194,7 @@ impl Credential {
             user: draft.user,
             key_path: draft.key_path,
             sort_order: 0,
+            sync_id: PublicId::generate(),
         }
     }
 

@@ -155,7 +155,9 @@ impl HostStore {
         let Some(snippet) = self.snippets.iter_mut().find(|snippet| snippet.id == id) else {
             return false;
         };
+        let sync_id = snippet.sync_id.clone();
         *snippet = Snippet::new(id, draft).with_sort_order(order);
+        snippet.sync_id = sync_id;
         true
     }
 
@@ -195,10 +197,7 @@ impl HostStore {
     ) -> SnippetCategoryId {
         let id = SnippetCategoryId(self.next_snippet_category_id);
         self.next_snippet_category_id += 1;
-        self.snippet_categories.push(SnippetCategory {
-            id,
-            name: name.into(),
-        });
+        self.snippet_categories.push(SnippetCategory::new(id, name));
         id
     }
 
@@ -469,10 +468,7 @@ mod tests {
             ))
             .unwrap();
         database
-            .insert_snippet_category(&SnippetCategory {
-                id: SnippetCategoryId(3),
-                name: "Docker".into(),
-            })
+            .insert_snippet_category(&SnippetCategory::new(SnippetCategoryId(3), "Docker"))
             .unwrap();
         database
             .insert_snippet(&Snippet::new(

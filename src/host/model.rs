@@ -397,6 +397,10 @@ pub struct Host {
     pub id: HostId,
     /// Set once when the host is created; editing never changes it.
     pub public_id: PublicId,
+    /// The same on every device this host is synced to (云同步). Set once,
+    /// like `public_id`, but its own: the CLI keeps naming a host the way
+    /// it did when sync matches it with another device`s copy.
+    pub sync_id: PublicId,
     pub name: SharedString,
     /// The host name or IP address it is reached at: 「地址」 in the form.
     pub address: SharedString,
@@ -430,6 +434,7 @@ impl Host {
         Self {
             id,
             public_id: PublicId::generate(),
+            sync_id: PublicId::generate(),
             name: draft.name,
             address: draft.address,
             port: draft.port,
@@ -502,6 +507,8 @@ pub struct HostGroup {
     pub sort_order: i64,
     /// Whether the group is expanded in the host tree across launches.
     pub expanded: bool,
+    /// The same on every device (云同步).
+    pub sync_id: PublicId,
 }
 
 impl HostGroup {
@@ -512,6 +519,7 @@ impl HostGroup {
             parent: draft.parent,
             sort_order: 0,
             expanded: true,
+            sync_id: PublicId::generate(),
         }
     }
 

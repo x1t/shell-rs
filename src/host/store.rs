@@ -661,8 +661,10 @@ impl HostStore {
         let sort_order = host.sort_order;
         let old_group = host.group;
         let public_id = host.public_id.clone();
+        let sync_id = host.sync_id.clone();
         *host = Host::new(id, draft);
         host.public_id = public_id;
+        host.sync_id = sync_id;
         host.state = state;
         host.os = os;
         host.sort_order = if host.group == old_group {
@@ -799,8 +801,10 @@ impl HostStore {
         let old_parent = group.parent;
         let old_order = group.sort_order;
         let expanded = group.expanded;
+        let sync_id = group.sync_id.clone();
         *group = HostGroup::new(id, draft);
         group.expanded = expanded;
+        group.sync_id = sync_id;
         group.sort_order = if group.parent == old_parent {
             old_order
         } else {
@@ -1004,8 +1008,10 @@ impl HostStore {
             return false;
         };
         let sort_order = rule.sort_order;
+        let sync_id = rule.sync_id.clone();
         *rule = ForwardRule::new(id, draft);
         rule.sort_order = sort_order;
+        rule.sync_id = sync_id;
         true
     }
 
@@ -1214,9 +1220,11 @@ impl HostStore {
         };
         let keychain_id = credential.keychain_id.clone();
         let sort_order = credential.sort_order;
+        let sync_id = credential.sync_id.clone();
         *credential = Credential::new(id, draft);
         credential.keychain_id = keychain_id;
         credential.sort_order = sort_order;
+        credential.sync_id = sync_id;
         let user = credential.user.clone();
         for host in self.hosts.iter_mut().chain(&mut self.temporary) {
             if host.credential == Some(id) {
@@ -2599,6 +2607,22 @@ mod tests {
         let ids: std::collections::HashSet<_> =
             store.hosts().iter().map(|s| &s.public_id).collect();
         assert_eq!(ids.len(), store.hosts().len());
+    }
+
+    #[test]
+    fn a_sync_id_stays_through_edits_and_a_copy_gets_its_own() {
+        let mut store = HostStore::seed();
+        let web = store.hosts()[0].clone();
+        let group = store.groups()[0].clone();
+        let mut draft = web.draft();
+        draft.name = "web-01 改名".into();
+        assert!(store.update_unnotified(web.id, draft));
+        assert!(store.update_group_unnotified(group.id, GroupDraft::new("产线", None)));
+        assert_eq!(store.hosts()[0].sync_id, web.sync_id);
+        assert_eq!(store.groups()[0].sync_id, group.sync_id);
+
+        let copy = store.duplicate_unnotified(web.id).unwrap();
+        assert_ne!(store.host(copy).unwrap().sync_id, web.sync_id);
     }
 
     #[test]

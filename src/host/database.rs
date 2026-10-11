@@ -37,8 +37,8 @@ fn from_sql(id: i64) -> u64 {
 ///
 /// 13 is the schema as it was rebuilt before the first release. Versions up
 /// to 12 were development builds, and their files are refused. 14 adds the
-/// command snippets.
-const SCHEMA_VERSION: i64 = 15;
+/// command snippets, 16 the ids 云同步 knows each row by.
+const SCHEMA_VERSION: i64 = 16;
 
 /// The whole schema, as a new database gets it.
 ///
@@ -76,6 +76,11 @@ const SCHEMA_VERSION: i64 = 15;
 ///   a host will go with it. `run_on_click` runs it on a click rather than
 ///   only typing it.
 ///
+/// - `sync_id` names a row of the six synced tables the same on every
+///   device (云同步). Like `public_id` it may be missing in a row added by
+///   hand until the next open (`fill_missing_sync_ids`); the ones there are
+///   unique.
+///
 /// A column added later goes after the table's last column here and is
 /// added to existing files with `ALTER TABLE ADD COLUMN`, which puts it in
 /// the same place (`a_column_added_later_matches_the_schema`).
@@ -85,9 +90,11 @@ CREATE TABLE groups (
     parent_id  INTEGER REFERENCES groups(id) ON DELETE CASCADE,
     name       TEXT NOT NULL CHECK (name <> ''),
     sort_order INTEGER NOT NULL DEFAULT 0,
-    expanded   INTEGER NOT NULL DEFAULT 1 CHECK (expanded IN (0, 1))
+    expanded   INTEGER NOT NULL DEFAULT 1 CHECK (expanded IN (0, 1)),
+    sync_id    TEXT
 ) STRICT;
 CREATE INDEX groups_parent_id ON groups(parent_id);
+CREATE UNIQUE INDEX groups_sync_id ON groups(sync_id);
 CREATE TABLE credentials (
     id          INTEGER PRIMARY KEY,
     keychain_id TEXT NOT NULL UNIQUE,
@@ -96,8 +103,10 @@ CREATE TABLE credentials (
     username    TEXT NOT NULL,
     key_path    TEXT,
     sort_order  INTEGER NOT NULL DEFAULT 0,
+    sync_id     TEXT,
     CHECK ((kind = 'key') = (key_path IS NOT NULL))
 ) STRICT;
+CREATE UNIQUE INDEX credentials_sync_id ON credentials(sync_id);
 CREATE TABLE hosts (
     id                INTEGER PRIMARY KEY,
     public_id         TEXT UNIQUE,
@@ -117,6 +126,7 @@ CREATE TABLE hosts (
     notes             TEXT NOT NULL DEFAULT '',
     os                TEXT,
     last_connected_at INTEGER,
+    sync_id           TEXT,
     CHECK ((auth = 'credential') = (credential_id IS NOT NULL)),
     CHECK ((auth = 'credential') = (username IS NULL)),
     CHECK ((route = 'proxy') = (proxy_kind IS NOT NULL)),
@@ -126,6 +136,7 @@ CREATE TABLE hosts (
 ) STRICT;
 CREATE INDEX hosts_group_id ON hosts(group_id);
 CREATE INDEX hosts_credential_id ON hosts(credential_id);
+CREATE UNIQUE INDEX hosts_sync_id ON hosts(sync_id);
 CREATE TABLE host_jumps (
     host_id  INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
     position INTEGER NOT NULL CHECK (position >= 0),
@@ -152,15 +163,19 @@ CREATE TABLE forwards (
     target_port INTEGER,
     auto_start  INTEGER NOT NULL DEFAULT 0 CHECK (auto_start IN (0, 1)),
     sort_order  INTEGER NOT NULL DEFAULT 0,
+    sync_id     TEXT,
     CHECK ((kind = 'dynamic' AND target_host IS NULL AND target_port IS NULL)
         OR (kind <> 'dynamic' AND target_host IS NOT NULL
             AND target_port BETWEEN 1 AND 65535))
 ) STRICT;
 CREATE INDEX forwards_host_id ON forwards(host_id);
+CREATE UNIQUE INDEX forwards_sync_id ON forwards(sync_id);
 CREATE TABLE snippet_categories (
     id   INTEGER PRIMARY KEY,
-    name TEXT NOT NULL CHECK (name <> '')
+    name    TEXT NOT NULL CHECK (name <> ''),
+    sync_id TEXT
 ) STRICT;
+CREATE UNIQUE INDEX snippet_categories_sync_id ON snippet_categories(sync_id);
 CREATE TABLE snippets (
     id             INTEGER PRIMARY KEY,
     category_id    INTEGER REFERENCES snippet_categories(id) ON DELETE CASCADE,
@@ -170,11 +185,13 @@ CREATE TABLE snippets (
     scope_host_id  INTEGER REFERENCES hosts(id) ON DELETE CASCADE,
     run_on_click   INTEGER NOT NULL DEFAULT 0 CHECK (run_on_click IN (0, 1)),
     sort_order     INTEGER NOT NULL DEFAULT 0,
+    sync_id        TEXT,
     CHECK (scope_group_id IS NULL OR scope_host_id IS NULL)
 ) STRICT;
 CREATE INDEX snippets_category_id ON snippets(category_id);
 CREATE INDEX snippets_scope_group_id ON snippets(scope_group_id);
-CREATE INDEX snippets_scope_host_id ON snippets(scope_host_id);";
+CREATE INDEX snippets_scope_host_id ON snippets(scope_host_id);
+CREATE UNIQUE INDEX snippets_sync_id ON snippets(sync_id);";
 
 /// One step from a version to the next: one transaction that ends by
 /// recording the version it reached.
@@ -191,7 +208,7 @@ enum Step {
 ///
 /// A step is history: it says what that version's change was, and stays as
 /// written when `SCHEMA` changes again.
-const STEPS: [(i64, Step); 2] = [
+const STEPS: [(i64, Step); 3] = [
     (
         13,
         // The command snippets.
@@ -220,6 +237,28 @@ COMMIT;",
     ),
     // Snippets dragged into order, starting from the order the list had.
     (14, Step::Code(order_snippets)),
+    // 云同步: an id for each row that is the same on every device. The
+    // rows get theirs at the next open, as a row added by hand does.
+    (
+        15,
+        Step::Sql(
+            "BEGIN;
+ALTER TABLE groups ADD COLUMN sync_id TEXT;
+ALTER TABLE credentials ADD COLUMN sync_id TEXT;
+ALTER TABLE hosts ADD COLUMN sync_id TEXT;
+ALTER TABLE forwards ADD COLUMN sync_id TEXT;
+ALTER TABLE snippet_categories ADD COLUMN sync_id TEXT;
+ALTER TABLE snippets ADD COLUMN sync_id TEXT;
+CREATE UNIQUE INDEX groups_sync_id ON groups(sync_id);
+CREATE UNIQUE INDEX credentials_sync_id ON credentials(sync_id);
+CREATE UNIQUE INDEX hosts_sync_id ON hosts(sync_id);
+CREATE UNIQUE INDEX forwards_sync_id ON forwards(sync_id);
+CREATE UNIQUE INDEX snippet_categories_sync_id ON snippet_categories(sync_id);
+CREATE UNIQUE INDEX snippets_sync_id ON snippets(sync_id);
+PRAGMA user_version = 16;
+COMMIT;",
+        ),
+    ),
 ];
 
 /// Version 14 to 15: a `sort_order` for each snippet, numbering them in each
@@ -305,13 +344,16 @@ impl HostDatabase {
         connection.execute_batch("PRAGMA journal_mode = WAL;")?;
         migrate(&connection)?;
         fill_missing_public_ids(&mut connection)?;
+        fill_missing_sync_ids(&mut connection)?;
         Ok(Self { connection })
     }
 
     pub fn load(&self) -> rusqlite::Result<StoredData> {
         let groups = self
             .connection
-            .prepare("SELECT id, name, parent_id, sort_order, expanded FROM groups ORDER BY id")?
+            .prepare(
+                "SELECT id, name, parent_id, sort_order, expanded, sync_id FROM groups ORDER BY id",
+            )?
             .query_map([], |row| {
                 let id: i64 = row.get(0)?;
                 let name: String = row.get(1)?;
@@ -322,6 +364,7 @@ impl HostDatabase {
                 );
                 group.sort_order = row.get(3)?;
                 group.expanded = row.get(4)?;
+                group.sync_id = stored_sync_id(row.get(5)?);
                 Ok(group)
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -331,7 +374,7 @@ impl HostDatabase {
             .prepare(
                 "SELECT id, public_id, group_id, sort_order, name, address, port, auth, username, \
                  credential_id, route, proxy_kind, proxy_host, proxy_port, proxy_username, \
-                 notes, os FROM hosts ORDER BY id",
+                 notes, os, sync_id FROM hosts ORDER BY id",
             )?
             .query_map([], |row| {
                 let id: i64 = row.get(0)?;
@@ -381,6 +424,7 @@ impl HostDatabase {
                     _ => Route::Direct,
                 };
                 host.os = os.as_deref().and_then(HostOs::from_stored);
+                host.sync_id = stored_sync_id(row.get(17)?);
                 Ok(host)
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -423,7 +467,8 @@ impl HostDatabase {
             .connection
             .prepare(
                 "SELECT id, host_id, name, kind, bind_host, bind_port, target_host, \
-                 target_port, auto_start, sort_order FROM forwards ORDER BY sort_order, id",
+                 target_port, auto_start, sort_order, sync_id FROM forwards \
+                 ORDER BY sort_order, id",
             )?
             .query_map([], |row| {
                 let id: i64 = row.get(0)?;
@@ -436,6 +481,7 @@ impl HostDatabase {
                 let target_port: Option<u16> = row.get(7)?;
                 let auto_start: bool = row.get(8)?;
                 let sort_order: i64 = row.get(9)?;
+                let sync_id = stored_sync_id(row.get(10)?);
                 // The table's CHECK admits only the kinds this build knows.
                 Ok(ForwardKind::from_stored(&kind).map(|kind| {
                     let target = target_host
@@ -451,6 +497,7 @@ impl HostDatabase {
                     .with_auto_start(auto_start);
                     let mut rule = ForwardRule::new(ForwardId(from_sql(id)), draft);
                     rule.sort_order = sort_order;
+                    rule.sync_id = sync_id;
                     rule
                 }))
             })?
@@ -460,7 +507,7 @@ impl HostDatabase {
         let credentials = self
             .connection
             .prepare(
-                "SELECT id, keychain_id, name, kind, username, key_path, sort_order \
+                "SELECT id, keychain_id, name, kind, username, key_path, sort_order, sync_id \
                  FROM credentials ORDER BY sort_order, id",
             )?
             .query_map([], |row| {
@@ -471,6 +518,7 @@ impl HostDatabase {
                 let user: String = row.get(4)?;
                 let key_path: Option<String> = row.get(5)?;
                 let sort_order: i64 = row.get(6)?;
+                let sync_id = stored_sync_id(row.get(7)?);
                 // The table's CHECK admits only the kinds this build knows.
                 Ok(CredentialKind::from_stored(&kind).map(|kind| {
                     let mut draft = CredentialDraft::new(name, kind, user);
@@ -478,6 +526,7 @@ impl HostDatabase {
                     let mut credential = Credential::new(CredentialId(from_sql(id)), draft);
                     credential.keychain_id = PublicId::from_stored(keychain_id);
                     credential.sort_order = sort_order;
+                    credential.sync_id = sync_id;
                     credential
                 }))
             })?
@@ -486,12 +535,14 @@ impl HostDatabase {
 
         let snippet_categories = self
             .connection
-            .prepare("SELECT id, name FROM snippet_categories ORDER BY id")?
+            .prepare("SELECT id, name, sync_id FROM snippet_categories ORDER BY id")?
             .query_map([], |row| {
-                Ok(SnippetCategory {
-                    id: SnippetCategoryId(from_sql(row.get(0)?)),
-                    name: row.get::<_, String>(1)?.into(),
-                })
+                let mut category = SnippetCategory::new(
+                    SnippetCategoryId(from_sql(row.get(0)?)),
+                    row.get::<_, String>(1)?,
+                );
+                category.sync_id = stored_sync_id(row.get(2)?);
+                Ok(category)
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
 
@@ -499,7 +550,7 @@ impl HostDatabase {
             .connection
             .prepare(
                 "SELECT id, category_id, name, command, scope_group_id, scope_host_id, \
-                 run_on_click, sort_order FROM snippets ORDER BY id",
+                 run_on_click, sort_order, sync_id FROM snippets ORDER BY id",
             )?
             .query_map([], |row| {
                 let id: i64 = row.get(0)?;
@@ -522,7 +573,10 @@ impl HostDatabase {
                     (None, Some(host)) => SnippetScope::Host(HostId(from_sql(host))),
                     (None, None) => SnippetScope::All,
                 };
-                Ok(Snippet::new(SnippetId(from_sql(id)), draft).with_sort_order(sort_order))
+                let mut snippet =
+                    Snippet::new(SnippetId(from_sql(id)), draft).with_sort_order(sort_order);
+                snippet.sync_id = stored_sync_id(row.get(8)?);
+                Ok(snippet)
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
 
@@ -564,13 +618,15 @@ impl HostDatabase {
 
     pub fn insert_group(&self, group: &HostGroup) -> rusqlite::Result<()> {
         self.connection.execute(
-            "INSERT INTO groups (id, name, parent_id, sort_order, expanded) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO groups (id, name, parent_id, sort_order, expanded, sync_id) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 to_sql(group.id.0),
                 group.name.as_ref(),
                 group.parent.map(|parent| to_sql(parent.0)),
                 group.sort_order,
                 group.expanded,
+                group.sync_id.as_str(),
             ],
         )?;
         Ok(())
@@ -621,8 +677,8 @@ impl HostDatabase {
         transaction.execute(
             "INSERT INTO hosts (id, public_id, group_id, sort_order, name, address, port, auth, \
              username, credential_id, route, proxy_kind, proxy_host, proxy_port, \
-             proxy_username, notes, os) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+             proxy_username, notes, os, sync_id) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
             params![
                 to_sql(host.id.0),
                 host.public_id.as_str(),
@@ -641,6 +697,7 @@ impl HostDatabase {
                 row.proxy_username,
                 host.notes.as_ref(),
                 host.os.map(HostOs::as_str),
+                host.sync_id.as_str(),
             ],
         )?;
         write_jumps(&transaction, host)?;
@@ -768,8 +825,8 @@ impl HostDatabase {
     pub fn insert_forward(&self, rule: &ForwardRule) -> rusqlite::Result<()> {
         self.connection.execute(
             "INSERT INTO forwards (id, host_id, name, kind, bind_host, bind_port, \
-             target_host, target_port, auto_start, sort_order) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+             target_host, target_port, auto_start, sort_order, sync_id) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 to_sql(rule.id.0),
                 to_sql(rule.host.0),
@@ -781,6 +838,7 @@ impl HostDatabase {
                 rule.target.as_ref().map(|target| target.port),
                 rule.auto_start,
                 rule.sort_order,
+                rule.sync_id.as_str(),
             ],
         )?;
         Ok(())
@@ -815,8 +873,8 @@ impl HostDatabase {
 
     pub fn insert_credential(&self, credential: &Credential) -> rusqlite::Result<()> {
         self.connection.execute(
-            "INSERT INTO credentials (id, keychain_id, name, kind, username, key_path, sort_order) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO credentials (id, keychain_id, name, kind, username, key_path, sort_order, \
+             sync_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 to_sql(credential.id.0),
                 credential.keychain_id.as_str(),
@@ -825,6 +883,7 @@ impl HostDatabase {
                 credential.user.as_ref(),
                 credential.key_path.as_deref(),
                 credential.sort_order,
+                credential.sync_id.as_str(),
             ],
         )?;
         Ok(())
@@ -868,8 +927,12 @@ impl HostDatabase {
 
     pub fn insert_snippet_category(&self, category: &SnippetCategory) -> rusqlite::Result<()> {
         self.connection.execute(
-            "INSERT INTO snippet_categories (id, name) VALUES (?1, ?2)",
-            params![to_sql(category.id.0), category.name.as_ref()],
+            "INSERT INTO snippet_categories (id, name, sync_id) VALUES (?1, ?2, ?3)",
+            params![
+                to_sql(category.id.0),
+                category.name.as_ref(),
+                category.sync_id.as_str(),
+            ],
         )?;
         Ok(())
     }
@@ -895,7 +958,7 @@ impl HostDatabase {
         let (group, host) = scope_columns(snippet.scope);
         self.connection.execute(
             "INSERT INTO snippets (id, category_id, name, command, scope_group_id, scope_host_id, \
-             run_on_click, sort_order) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+             run_on_click, sort_order, sync_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 to_sql(snippet.id.0),
                 snippet.category.map(|id| to_sql(id.0)),
@@ -905,6 +968,7 @@ impl HostDatabase {
                 host,
                 snippet.run_on_click,
                 snippet.sort_order,
+                snippet.sync_id.as_str(),
             ],
         )?;
         Ok(())
@@ -938,6 +1002,17 @@ impl HostDatabase {
 
     /// Record the operating system a probe found on the host. `None` clears
     /// it, which is what a failed probe on a rebuilt host leaves behind.
+    /// Give the row `id` of `table`, one of the synced tables, another
+    /// sync id: 云同步 found it is an item another device made too.
+    pub fn set_sync_id(&self, table: &str, id: u64, sync_id: &PublicId) -> rusqlite::Result<()> {
+        assert!(SYNCED_TABLES.contains(&table), "{table} is not synced");
+        self.connection.execute(
+            &format!("UPDATE {table} SET sync_id = ?2 WHERE id = ?1"),
+            params![to_sql(id), sync_id.as_str()],
+        )?;
+        Ok(())
+    }
+
     pub fn set_host_os(&self, id: HostId, os: Option<HostOs>) -> rusqlite::Result<()> {
         self.connection.execute(
             "UPDATE hosts SET os = ?2 WHERE id = ?1",
@@ -1121,6 +1196,41 @@ fn fill_missing_public_ids(connection: &mut Connection) -> rusqlite::Result<()> 
         }
     }
     transaction.commit()
+}
+
+/// The tables whose rows 云同步 keeps in step, each with a `sync_id`.
+const SYNCED_TABLES: [&str; 6] = [
+    "groups",
+    "credentials",
+    "hosts",
+    "forwards",
+    "snippet_categories",
+    "snippets",
+];
+
+/// Give every synced row without a `sync_id` one: every row of a file that
+/// came from version 15, and any row added by hand. Random ids of 95 bits
+/// do not meet, and the unique index would refuse one that did.
+fn fill_missing_sync_ids(connection: &mut Connection) -> rusqlite::Result<()> {
+    let transaction = connection.transaction()?;
+    for table in SYNCED_TABLES {
+        let missing = transaction
+            .prepare(&format!("SELECT id FROM {table} WHERE sync_id IS NULL"))?
+            .query_map([], |row| row.get::<_, i64>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut update =
+            transaction.prepare(&format!("UPDATE {table} SET sync_id = ?2 WHERE id = ?1"))?;
+        for id in missing {
+            update.execute(params![id, PublicId::generate().as_str()])?;
+        }
+    }
+    transaction.commit()
+}
+
+/// A row's `sync_id`. Every row has one once the file is open
+/// (`fill_missing_sync_ids`).
+fn stored_sync_id(id: Option<String>) -> PublicId {
+    PublicId::from_stored(id.unwrap_or_default())
 }
 
 /// Seconds since the Unix epoch, for `touch_connected`.
@@ -1418,6 +1528,73 @@ INSERT INTO snippets (id, category_id, name, command) VALUES
         assert_eq!(orders, [(1, 2), (2, 1), (3, 0), (4, 0), (5, 1)]);
     }
 
+    #[test]
+    fn a_version_15_file_gives_every_row_an_id_for_sync() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("shellrs.db");
+        {
+            let old = Connection::open(&path).unwrap();
+            old.execute_batch(&format!(
+                "BEGIN;\n{SCHEMA_13}\nPRAGMA user_version = 13;\nCOMMIT;"
+            ))
+            .unwrap();
+            // Version 15 is 13 and the two steps that made it, as written then.
+            let Step::Sql(step) = STEPS[0].1 else {
+                panic!("step 13 is SQL")
+            };
+            old.execute_batch(step).unwrap();
+            order_snippets(&old).unwrap();
+            old.execute_batch(
+                "INSERT INTO groups (id, name) VALUES (1, '生产');
+INSERT INTO credentials (id, keychain_id, name, kind, username) VALUES (1, 'k1', 'ops', 'password', 'root');
+INSERT INTO hosts (id, name, address, port, auth, username, group_id) VALUES
+    (1, 'web', '10.0.0.1', 22, 'password', 'root', 1),
+    (2, 'db', '10.0.0.2', 22, 'password', 'root', NULL);
+INSERT INTO forwards (id, host_id, kind, bind_host, bind_port) VALUES (1, 1, 'dynamic', '127.0.0.1', 1080);
+INSERT INTO snippet_categories (id, name) VALUES (1, 'Docker');
+INSERT INTO snippets (id, category_id, name, command) VALUES (1, 1, 'ps', 'docker ps');",
+            )
+            .unwrap();
+        }
+
+        let db = HostDatabase::open(&path).unwrap();
+        assert!(dir.path().join("shellrs.db.v15.bak").exists());
+        let fresh = HostDatabase::in_memory().unwrap();
+        assert_eq!(schema_of(&db.connection), schema_of(&fresh.connection));
+        let data = db.load().unwrap();
+        let ids: Vec<&str> = data
+            .groups
+            .iter()
+            .map(|group| group.sync_id.as_str())
+            .chain(data.credentials.iter().map(|c| c.sync_id.as_str()))
+            .chain(data.hosts.iter().map(|host| host.sync_id.as_str()))
+            .chain(data.forwards.iter().map(|rule| rule.sync_id.as_str()))
+            .chain(data.snippet_categories.iter().map(|c| c.sync_id.as_str()))
+            .chain(data.snippets.iter().map(|snippet| snippet.sync_id.as_str()))
+            .collect();
+        assert_eq!(ids.len(), 7);
+        assert!(ids.iter().all(|id| id.len() == 16), "{ids:?}");
+        let unique: HashSet<&&str> = ids.iter().collect();
+        assert_eq!(unique.len(), ids.len());
+
+        // The next open keeps them.
+        drop(db);
+        let again = HostDatabase::open(&path).unwrap().load().unwrap();
+        assert_eq!(again.hosts[0].sync_id, data.hosts[0].sync_id);
+    }
+
+    #[test]
+    fn a_sync_id_is_saved_and_kept_through_updates() {
+        let db = HostDatabase::in_memory().unwrap();
+        let mut web = host(1, "web", None);
+        db.insert_host(&web).unwrap();
+        web.name = "web-01".into();
+        db.update_host(&web).unwrap();
+        let loaded = db.load().unwrap();
+        assert_eq!(loaded.hosts[0].sync_id, web.sync_id);
+        assert_ne!(loaded.hosts[0].sync_id, loaded.hosts[0].public_id);
+    }
+
     fn snippet(id: u64, name: &str, category: Option<u64>, scope: SnippetScope) -> Snippet {
         let mut draft = SnippetDraft::new(
             name,
@@ -1431,10 +1608,7 @@ INSERT INTO snippets (id, category_id, name, command) VALUES
     #[test]
     fn snippets_round_trip_and_go_with_their_category() {
         let db = HostDatabase::in_memory().unwrap();
-        let docker = SnippetCategory {
-            id: SnippetCategoryId(1),
-            name: "Docker".into(),
-        };
+        let docker = SnippetCategory::new(SnippetCategoryId(1), "Docker");
         db.insert_snippet_category(&docker).unwrap();
         let mut ps = snippet(1, "列出容器", Some(1), SnippetScope::All);
         ps.command = "docker ps -a\ndocker images".into();
