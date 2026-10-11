@@ -3,6 +3,7 @@
 mod app_theme;
 mod apply;
 mod highlight_rules;
+mod local_shell_editor;
 mod model;
 mod settings_panel;
 mod shortcuts_editor;
@@ -12,7 +13,8 @@ mod terminal_themes;
 pub use apply::apply;
 pub use model::{
     AnalyticsSettings, AppSettings, Appearance, Choice, ComposeSettings, ExternalCliSettings,
-    InterfaceLanguage, NotificationSettings, TerminalFontSettings, TerminalHighlightSettings,
+    InterfaceLanguage, LocalTerminalSettings, NotificationSettings, TerminalFontSettings,
+    TerminalHighlightSettings,
     TerminalThemeSettings, UpdateSettings, WindowSettings,
 };
 pub use settings_panel::{SettingsPanel, SettingsPanelEvent};

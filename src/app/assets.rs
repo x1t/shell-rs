@@ -82,7 +82,8 @@ icon_assets!(
         ExternalLink,
         Highlighter,
         GripVertical,
-        Cloud
+        Cloud,
+        FileSearch
     ]
 );
 
