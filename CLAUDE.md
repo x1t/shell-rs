@@ -8,7 +8,7 @@ ShellRS（crate 与二进制都叫 `shellrs`）是 Xshell / WinSCP 式的 SSH �
 
 - **术语。** 保存的一项叫「主机」（量词「台」），代码和库里叫 host（`Host`、`HostId`、`HostStore`、`hosts` 表）。它以前叫「会话」/ `Session`，已全部改掉，新代码和文案别再用。填 IP / 域名的字段叫「地址」（`Host.address`）。SSH 协议层的 session（「SSH 会话通道」、russh 的 `Session`、SFTP 会话）照旧。英文用词见「多语言」的用词表。
 - **两种不保存的连接。** 「外部连接」：堡垒机像调 Xshell（`ssh://`、`-url`）或 WinSCP（`sftp://`）一样拉起 ShellRS，只开一个终端或 SFTP 标签（`HostStore::is_external`）。「临时连接」：标题栏「临时连接…」打开，功能齐全。两者共同的「不保存」在代码里叫 temporary（`HostInfo::temporary`）。
-- **全是真的。** SQLite（`~/Library/Application Support/shellrs/shellrs.db`，`SHELLRS_DATA_DIR` 可覆盖目录）、本地终端（`portable-pty` + `alacritty_terminal`）、SSH（`russh`）、SFTP（双栏、传输队列、断点续传）、端口转发（`-L` / `-R` / `-D`）、凭据、连接方式（直连、多级跳板、HTTP / SOCKS5 代理）、右侧栏七个工具、内置编辑器和预览、外部 CLI、在线升级、匿名使用统计（Aptabase）。密码和口令只进系统钥匙串（`keyring`），**数据库里永远不出现秘密**。
+- **全是真的。** SQLite（`~/Library/Application Support/shellrs/shellrs.db`，`SHELLRS_DATA_DIR` 可覆盖目录）、本地终端（`portable-pty` + `alacritty_terminal`）、SSH（`russh`）、SFTP（双栏、传输队列、断点续传）、端口转发（`-L` / `-R` / `-D`）、凭据、连接方式（直连、多级跳板、HTTP / SOCKS5 代理）、右侧栏七个工具、内置编辑器和预览、外部 CLI、在线升级、匿名使用统计（Aptabase）、云同步（自建的 shell-rs-server，端到端加密）。密码和口令只进系统钥匙串（`keyring`），**数据库里永远不出现秘密**。
 
 做 UI 之前先读 `gpui-kit` 与 `gpui-kit-design-guides` 两个技能（其中的 Coding Guides 和 Design Guides 在本仓库是规范，不是参考）。不要凭记忆臆造 gpui-kit API：以 `~/.cargo/registry/src/*/gpui-component-0.6.1/`、`gpui-base-0.6.1/` 的源码或 `https://gpui-kit.com/component/<name>.md` 为准。
 
@@ -98,6 +98,13 @@ ShellRS（crate 与二进制都叫 `shellrs`）是 Xshell / WinSCP 式的 SSH �
 - **预览**：图片和 Markdown（不做 HTML），显示在快速查看式的大对话框里，不是标签。
   - 双击图片预览；Markdown 和 SVG 是文本，双击编辑，右键另有「预览」。
   - 图片默认适合窗口居中，可放大、缩小、看原图、滚动；比例只写百分比。
+- **云同步**（用户定的）：经用户自己的同步服务器 shell-rs-server（另一个仓库 `x1t/shell-rs-server`，Go + SQLite，部署见它的 README），不注册任何第三方服务。只有管理员用 `user add` 建账号，没有注册接口。
+  - 「设置 › 云同步」一个分类（排在「应用」和「关于」之间）：服务器地址、用户名、密码；登录后显示服务器、用户名、状态、「立即同步」「退出登录」。标题栏凭据钥匙按钮旁边一个同步图标按钮（`RefreshCw`，只在登录后出现，同步时转圈、出错变黄）。
+  - **端到端加密**：密码经 Argon2id（64 MiB、3 轮、4 线程，服务器给的参数低于这些就拒绝）派生 64 字节，前一半解开账号的 vault key、从不离开本机，后一半是登录用的认证密钥。每条记录用 vault key 做 XChaCha20-Poly1305、以记录 id 为关联数据；记录的种类也在密文里，服务器只按 revision 排序。KDF 必须和 Go 的 `authKey` 一致（`the_kdf_agrees_with_the_server` 里是 Go 算出的向量）。会话令牌和 vault key 在钥匙串（`SecretRef::Sync`），`sync.json` 只有账号、游标和每条记录上次一致时的 revision 与 HMAC 指纹。
+  - **能同步的全部同步**：主机（含书签、密码、代理密码）、分组、凭据（含密码、口令、私钥内容）、端口转发、片段分类和片段、整个 `settings.json`、`known_hosts`（按行并集）。不同步：窗口状态、最近连接、主机系统、撰写历史、续传记录、分组展开状态。私钥收到后存进 `keys/`，从不改用户自己的私钥文件。
+  - **什么时候同步**：启动、窗口回到前台、store 或设置改动后停 2 秒、手动。不加定时器（同统计）。
+  - **合并**：每条记录三方比较（本机现在、上次一致、服务器现在）。只一边改了用那边；两边都改了本机赢（改动几秒内就同步，本机就是后改的）；本机删、别处改，删除赢。没同步过的本机新项和服务器上自然键相同的项合成一项（主机：名称、地址、端口、用户；分组：路径；凭据：种类、名称、用户；片段：分类、名称、命令；转发：主机、种类、监听），改用服务器的 id。轮次进行中本机改过的项不覆盖，下一轮推上去。
+  - 别处删除的主机：先像 CLI 的 `--force` 那样关掉它的标签再删。
 - **从 Xshell 导入**：入口在「设置 › 应用 › 导入」，一个对话框勾选主机和快速命令。
   - 会话的子文件夹变成分组；名称、地址、端口、用户都相同的主机跳过；片段只在同一分类里查重（同名同命令），每个命令集完整导入（用户定的，副本 `.qbl` 也照导）；重复导入不加东西。
   - 密码按当前 Windows 用户解开（Xshell 7+ 的算法，用户核实过），解不开的留空、连接时询问；不支持 Xshell 主密码。
@@ -162,6 +169,7 @@ cargo test -- --ignored                     # 会读写真实钥匙串的测试�
 - `cli/`：外部 CLI（`shellrs hosts/credentials/exec/upload/download/sync`，给 AI Agent 用）、套接字协议、应用里的服务端、主机和凭据改动的校验（`manage.rs`）、PATH 和 Agent skill 的安装。
 - `update/`：在线升级，包括清单、验签、下载、各平台安装器和 `Updater`。
 - `analytics/`：匿名使用统计。`model.rs` 是纯的计数、事件和发送时机（`Reporter`），`system.rs` 用 `os_info` 读系统名和版本，`client.rs` 是投递线程和工作区拿着的 `Analytics` 句柄；工作区的接线在 `workspace/analytics.rs`。
+- `sync/`：云同步。`crypto.rs`（KDF、vault key、密封）、`record.rs`（`Payload`：每种项的记录，引用用 sync id）、`local.rs`（UI 线程取快照，工作线程读钥匙串和私钥文件）、`merge.rs`（纯的三方合并）、`engine.rs`（登录和一轮拉取、合并、推送）、`api.rs`（协议和 `HttpSyncApi`）、`apply.rs`（把结果写进 store、钥匙串、私钥、设置、`known_hosts`）、`syncer.rs`（实体：账号、会话、何时同步，`shellrs-sync` 线程一次一个任务，100 ms 轮询）、`memory.rs`（内存里的服务端，给测试）、`sync_form.rs`（设置页）。store 一侧按 sync id 找和写的函数在 `host/store/sync.rs`；工作区的接线在 `workspace/sync.rs`。UI 测试用 `SyncServices::with_api` 加 `MemorySyncServer`，另一台电脑是不带窗口的 `Syncer`；对真实服务端的端到端测试是 `two_devices_sync_through_a_real_server`（`#[ignore]`，要 `SHELLRS_SYNC_TEST_*` 环境变量）。
 - `import/`：从 Xshell 导入。`xshell.rs` 是读数据文件夹的纯逻辑，`xshell_crypt.rs` 解密码（SID 取自 `cli::current_user_sid`），`apply.rs` 写进 store 并给出 `ImportReport`，`import_dialog.rs` 是对话框和结果。默认文件夹由 `Workspace::new` 找，UI 测试用 `set_xshell_folder` 给临时目录。
 - `workspace/`：窗口壳。持有 store、`DockArea`、各类标签的注册表和**全部动作处理器**，按领域拆成多个文件（`forwards.rs`、`credentials.rs`、`links.rs`、`editors.rs`、`tools.rs`、`updates.rs`…）。另有标题栏、状态栏、左侧栏 `Sidebar`、右侧栏 `ToolSidebar`、开始页。
 - `shared/`：多个功能共用的展示片段（`ClosableTabTitle`、`HostMark`、`SegmentedControl`、`RowTooltips`、`confirm_danger`、`form_error_notification` 等）。
@@ -179,7 +187,7 @@ cargo test -- --ignored                     # 会读写真实钥匙串的测试�
 - **私钥文件。** ShellRS 保存的私钥在 `keys/` 下（目录 0700、文件 0600，经临时文件改名写入）。只有没人再用时才删这个目录下的文件；用户自己的私钥文件从不改动或删除。
 - **登录快照在 UI 线程解析。** 工作线程读不到 store，拿到的是 `HostLogin`：凭据和跳板都已查好。它只含影响登录的字段并派生 `PartialEq`：改主机或凭据时比较前后快照，不同才发 `ConnectionSettingsChanged` 重连，所以只改名称不重连。
 - **id 由内存分配**，四个独立计数器，重启后从库里最大 id + 1 开始，删掉的最大号会被复用。对外只给 `PublicId`（16 位随机串，改名、改地址都不变，不复用），不给 `HostId`。
-- **改表**：现在 `SCHEMA_VERSION` 是 15，所有表都是 `STRICT`。
+- **改表**：现在 `SCHEMA_VERSION` 是 16，所有表都是 `STRICT`。六张同步的表（groups、credentials、hosts、forwards、snippet_categories、snippets）各有 `sync_id`（跨设备的 id，和 CLI 用的 `public_id`、`keychain_id` 分开），打开时由 `fill_missing_sync_ids` 补齐；store 的更新函数重建结构体时要保留它。
   - 改表要升版本、在 `STEPS` 里加一步，并加一个「用冻结的旧 schema 升级、再和新库比对」的测试。
   - 加列直接 `ALTER TABLE ADD COLUMN`，在 `SCHEMA` 里也写在最后一列之后。
   - 库只往前升：旧版本遇到新库直接报错、不动文件。迁移前先 `VACUUM INTO` 备份。
@@ -224,7 +232,7 @@ cargo test -- --ignored                     # 会读写真实钥匙串的测试�
 | 显示隐藏文件 | Show hidden files |
 | 废纸篓 | macOS 写 Trash，Windows 写 Recycle Bin |
 | 右侧栏七个工具 | Snippets / History / Docker / Services / Processes / Network / Monitor |
-| 设置七类（外观、终端、关键字高亮、键盘快捷键、外部 CLI、应用、关于） | Appearance / Terminal / Highlighting / Keyboard shortcuts / External CLI / General / About |
+| 设置八类（外观、终端、关键字高亮、键盘快捷键、外部 CLI、应用、云同步、关于） | Appearance / Terminal / Highlighting / Keyboard shortcuts / External CLI / General / Sync / About |
 | 应用更新 / 稳定版 / 重启并安装 / 查看更新内容 | Updates / Stable / Restart to update / What’s new |
 | 连接 / 断开连接 / 重新连接 | Connect / Disconnect / Reconnect |
 | 已连接 / 未连接 / 连接中 | Connected / Not connected / Connecting |
