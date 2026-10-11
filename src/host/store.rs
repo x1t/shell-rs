@@ -20,6 +20,7 @@ use super::{
 };
 
 mod snippets;
+mod sync;
 
 /// The single source of truth for hosts, groups, the rules that belong
 /// to hosts (bookmarks, port forwards), the credentials hosts log in with
@@ -130,6 +131,8 @@ enum Change {
     NewSnippetCategory,
     RenameSnippetCategory,
     DeleteSnippetCategory,
+    /// A change 云同步 brought from another device.
+    Synced,
 }
 
 impl Change {
@@ -174,6 +177,7 @@ impl Change {
                 "host.store.not_saved.delete_snippet_category",
                 error = error
             ),
+            Change::Synced => t!("host.store.not_saved.synced", error = error),
         }
     }
 }
@@ -210,6 +214,7 @@ fn secret_failure(secret: &SecretRef, writing: bool) -> fn(&str) -> SharedString
         (SecretRef::Temporary { .. }, _) => {
             |error| t!("host.store.secret.temporary", error = error)
         }
+        (SecretRef::Sync { .. }, _) => |error| t!("host.store.secret.sync", error = error),
     }
 }
 

@@ -163,6 +163,10 @@ gpui_kit::actions!(
         OpenWebsite,
         /// Bring in Xshell's sessions and quick commands (设置 › 应用 › 导入).
         ImportFromXshell,
+        /// Run a 云同步 round now (设置 › 云同步).
+        SyncNow,
+        /// Log out of 云同步; what was synced stays.
+        SyncLogOut,
     ]
 );
 

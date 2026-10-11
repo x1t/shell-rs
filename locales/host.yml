@@ -570,6 +570,9 @@ host.store.not_saved.new_snippet_category:
 host.store.not_saved.rename_snippet_category:
   zh-CN: 重命名片段分类未能保存到本地数据库：%{error}
   en: "Couldn’t save the renamed snippet category to the local database: %{error}"
+host.store.not_saved.synced:
+  zh-CN: 同步来的修改未能保存到本地数据库：%{error}
+  en: "Couldn’t save a change synced from another device to the local database: %{error}"
 host.store.not_saved.delete_snippet_category:
   zh-CN: 删除片段分类未能保存到本地数据库：%{error}
   en: "Couldn’t delete the snippet category from the local database: %{error}"
@@ -608,6 +611,9 @@ host.store.secret.proxy_write:
 host.store.secret.proxy_delete:
   zh-CN: 代理的密码未能从系统钥匙串删除：%{error}
   en: "Couldn’t delete the proxy’s password from the system keychain: %{error}"
+host.store.secret.sync:
+  zh-CN: 云同步的登录未能存进系统钥匙串：%{error}
+  en: "Couldn’t save the sync login in the system keychain: %{error}"
 host.store.secret.temporary:
   zh-CN: 这次连接的密码未能记下：%{error}
   en: "Couldn’t keep the password for this connection: %{error}"

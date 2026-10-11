@@ -454,7 +454,7 @@ fn the_window_settings_are_on_until_turned_off(cx: &mut TestAppContext) {
         cx.update(|cx| workspace.read(cx).settings().read(cx).settings().window)
     };
     in_frame(cx, handle, |window, cx| window.click("open-settings", cx));
-    // 应用 comes right before 关于.
+    // 应用, the sixth category.
     in_frame(cx, handle, |window, cx| {
         window.within("settings").click("0-5", cx)
     });

@@ -52,6 +52,9 @@ settings.category.external_cli:
 settings.category.application:
   zh-CN: 应用
   en: General
+settings.category.sync:
+  zh-CN: 云同步
+  en: Sync
 settings.category.about:
   zh-CN: 关于
   en: About

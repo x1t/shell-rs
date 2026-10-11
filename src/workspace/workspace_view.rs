@@ -187,6 +187,9 @@ pub struct Workspace {
     /// 匿名使用统计. Production only, like the CLI server: UI tests hand in
     /// one that only records.
     pub(super) analytics: Option<super::analytics::Reporting>,
+    /// 云同步. Without services in UI tests, so it never reaches the
+    /// network unless a test hands it a server kept in memory.
+    pub(super) syncer: Entity<crate::sync::Syncer>,
     local_terminal_factory: SharedTerminalTransportFactory,
     remote_terminal_provider: SharedRemoteTerminalTransportProvider,
     sftp_provider: SharedSftpTransportProvider,
@@ -305,6 +308,8 @@ impl Workspace {
             this.report_started(cx);
             this.count_automatic_forwards(cx);
         }
+        let secrets = this.store.read(cx).secrets();
+        this.set_sync_services(crate::sync::SyncServices::system(secrets), window, cx);
         this
     }
 
@@ -344,6 +349,7 @@ impl Workspace {
         );
         let host_panel = cx.new(|cx| HostPanel::new(store.clone(), window, cx));
         let forwards = cx.new(|cx| ForwardManager::new(store.clone(), forward_provider, cx));
+        let syncer = cx.new(|cx| crate::sync::Syncer::new(store.clone(), settings.clone(), cx));
         let update_settings = settings.read(cx).settings().update.clone();
         let updater = cx.new(|cx| {
             let mut updater = Updater::new();
@@ -427,6 +433,14 @@ impl Workspace {
                 window,
                 |this, _, event: &UpdaterEvent, window, cx| {
                     this.on_updater_event(event, window, cx)
+                },
+            ),
+            cx.observe(&syncer, |_, _, cx| cx.notify()),
+            cx.subscribe_in(
+                &syncer,
+                window,
+                |this, _, event: &crate::sync::SyncerEvent, window, cx| {
+                    this.on_syncer_event(event, window, cx)
                 },
             ),
             cx.subscribe_in(
@@ -565,6 +579,7 @@ impl Workspace {
             cli_server: None,
             updater,
             analytics: None,
+            syncer,
             local_terminal_factory,
             remote_terminal_provider,
             sftp_provider,
@@ -1230,10 +1245,20 @@ impl Workspace {
         // Something may have been installed or removed since last time.
         integration.update(cx, |integration, cx| integration.refresh(cx));
         let updater = self.updater.clone();
+        let syncer = self.syncer.clone();
         // 隐私 only where something is reported.
         let reports_usage = self.analytics.is_some();
-        let panel =
-            cx.new(|cx| SettingsPanel::new(store, integration, updater, reports_usage, window, cx));
+        let panel = cx.new(|cx| {
+            SettingsPanel::new(
+                store,
+                integration,
+                updater,
+                syncer,
+                reports_usage,
+                window,
+                cx,
+            )
+        });
         let subscription = cx.subscribe_in(
             &panel,
             window,
@@ -2619,6 +2644,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::on_open_changelog))
             .on_action(cx.listener(Self::on_open_website))
             .on_action(cx.listener(Self::on_import_from_xshell))
+            .on_action(cx.listener(Self::on_sync_now))
+            .on_action(cx.listener(Self::on_sync_log_out))
             .on_action(cx.listener(Self::on_copy_agent_skill))
             .on_action(cx.listener(Self::on_close_settings))
             .on_action(cx.listener(Self::on_close_active_tab))
@@ -2700,6 +2727,7 @@ impl Render for Workspace {
                 sidebar,
                 running_forwards,
                 self.updater.read(cx).snapshot().badge(),
+                self.syncer.read(cx).badge(),
                 &self.focus_handle,
                 cx,
             ))

@@ -17,6 +17,7 @@ mod recent_hosts;
 mod sidebar;
 mod snippets;
 mod status_bar;
+mod sync;
 mod tabs;
 mod title_bar;
 mod tool_sidebar;

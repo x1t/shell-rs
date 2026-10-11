@@ -143,7 +143,7 @@ fn turned_off_in_the_settings_nothing_is_reported(cx: &mut TestAppContext) {
     // 设置 › 关于 › 隐私 › 发送匿名使用统计.
     in_frame(cx, handle, |window, cx| window.click("open-settings", cx));
     in_frame(cx, handle, |window, cx| {
-        window.within("settings").click("0-6", cx)
+        window.within("settings").click("0-7", cx)
     });
     in_frame(cx, handle, |window, cx| {
         let switch = window
@@ -177,7 +177,7 @@ fn a_build_that_reports_nothing_has_no_privacy_settings(cx: &mut TestAppContext)
     let (handle, _) = open_workspace(cx);
     in_frame(cx, handle, |window, cx| window.click("open-settings", cx));
     in_frame(cx, handle, |window, cx| {
-        window.within("settings").click("0-6", cx)
+        window.within("settings").click("0-7", cx)
     });
     // 应用更新, then straight to ShellRS: no switch to turn reporting off.
     in_frame(cx, handle, |window, _| {

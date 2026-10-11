@@ -47,6 +47,8 @@ pub enum SecretRef {
     /// 不保存的连接（外部连接，以后还有临时连接）的密码，按这台临时主机的 id
     /// 归属。只在 [`TemporarySecretStore`] 的内存里，从不进钥匙串。
     Temporary { host: u64 },
+    /// 云同步的登录：会话令牌和 vault key，按服务器地址和账号归属。
+    Sync { server: String, user: String },
 }
 
 impl SecretRef {
@@ -82,6 +84,13 @@ impl SecretRef {
         Self::Temporary { host }
     }
 
+    pub fn sync(server: impl Into<String>, user: impl Into<String>) -> Self {
+        Self::Sync {
+            server: server.into(),
+            user: user.into(),
+        }
+    }
+
     /// 钥匙串条目的账户名。前缀区分种类，在 Keychain Access 里直接可读。
     pub fn account(&self) -> String {
         match self {
@@ -90,6 +99,7 @@ impl SecretRef {
             Self::Credential { keychain_id } => format!("credential:{keychain_id}"),
             Self::Proxy { user, host, port } => format!("proxy:{user}@{host}:{port}"),
             Self::Temporary { host } => format!("temporary:{host}"),
+            Self::Sync { server, user } => format!("sync:{user}@{server}"),
         }
     }
 }
@@ -157,6 +167,7 @@ mod tests {
             SecretRef::credential("root@10.0.1.12:22"),
             SecretRef::proxy("root", "10.0.1.12", 22),
             SecretRef::temporary(22),
+            SecretRef::sync("root@10.0.1.12:22", "root"),
         ]
         .map(|secret| secret.account());
         for (ix, account) in accounts.iter().enumerate() {

@@ -28,6 +28,7 @@ mod settings;
 mod sftp;
 mod shortcuts;
 mod snippets;
+mod sync;
 mod terminal;
 mod transfer;
 mod update;

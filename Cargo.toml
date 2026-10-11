@@ -87,6 +87,9 @@ semver = { version = "1", features = ["serde"] }
 # 匿名使用统计: the system's name and version for Aptabase, as its own Tauri
 # plugin reads them.
 os_info = { version = "3", default-features = false }
+argon2 = "0.6"
+chacha20poly1305 = "0.11"
+hmac = "0.12"
 
 [target.'cfg(unix)'.dependencies]
 # `access(2)`: whether the folder ShellRS runs from can take its update.
@@ -159,6 +162,9 @@ crypto-bigint = { opt-level = 3 }
 crypto-primes = { opt-level = 3 }
 bcrypt-pbkdf = { opt-level = 3 }
 blowfish = { opt-level = 3 }
+# 云同步 runs Argon2id over 64 MiB to log in.
+argon2 = { opt-level = 3 }
+blake2 = { opt-level = 3 }
 # The editor parses whole files of up to 5 MB to highlight them.
 tree-sitter = { opt-level = 3 }
 tree-sitter-bash = { opt-level = 3 }

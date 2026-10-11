@@ -62,6 +62,12 @@ pub fn compose_history_path() -> PathBuf {
     data_dir().join("compose_history.json")
 }
 
+/// 云同步's account and what this device last agreed on with the server.
+/// The session itself is in the keychain.
+pub fn sync_state_path() -> PathBuf {
+    data_dir().join("sync.json")
+}
+
 /// What 匿名使用统计 keeps between runs: whether this installation was
 /// reported, and the uses not sent yet. Beside the database, so a fresh
 /// data directory is a fresh installation.

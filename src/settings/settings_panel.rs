@@ -28,6 +28,7 @@ use crate::app::{
 use crate::cli::{AgentKind, BinaryStatus, CliIntegration, IntegrationStatus, SkillStatus};
 use crate::i18n::t;
 use crate::shared::{ClosableTabTitle, close_tab_items};
+use crate::sync::{SyncForm, Syncer};
 use crate::terminal::{
     FONT_SIZE_RANGE, LINE_HEIGHT_RANGE, TerminalColors, TerminalFont, TerminalFontPreview,
     TerminalHighlights, is_font_installed, monospace_font_families,
@@ -58,6 +59,8 @@ pub struct SettingsPanel {
     integration: Entity<CliIntegration>,
     /// Where updating stands, for 关于.
     updater: Entity<Updater>,
+    /// 云同步's fields and where it stands.
+    sync_form: Entity<SyncForm>,
     /// Usage statistics are reported, so 关于 has 隐私 to turn them off: a
     /// build without an Aptabase key never reports.
     reports_usage: bool,
@@ -75,7 +78,7 @@ pub struct SettingsPanel {
     shown_category: Rc<Cell<usize>>,
     focus_handle: FocusHandle,
     tab_group: Option<WeakEntity<TabGroup>>,
-    _subscriptions: [Subscription; 4],
+    _subscriptions: [Subscription; 5],
     _font_scan: Task<()>,
 }
 
@@ -84,10 +87,12 @@ impl SettingsPanel {
         store: Entity<SettingsStore>,
         integration: Entity<CliIntegration>,
         updater: Entity<Updater>,
+        syncer: Entity<Syncer>,
         reports_usage: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let sync_form = cx.new(|cx| SyncForm::new(syncer, window, cx));
         let highlight_rules = cx.new(|cx| HighlightRulesEditor::new(store.clone(), window, cx));
         let shortcuts = cx.new(|cx| ShortcutsEditor::new(store.clone(), window, cx));
         let subscriptions = [
@@ -95,6 +100,7 @@ impl SettingsPanel {
             cx.observe(&shortcuts, |_, _, cx| cx.notify()),
             cx.observe(&integration, |_, _, cx| cx.notify()),
             cx.observe(&updater, |_, _, cx| cx.notify()),
+            cx.observe(&sync_form, |_, _, cx| cx.notify()),
         ];
         // Loading every family takes a moment the first time; the process
         // keeps the answer, so later tabs have it at once.
@@ -112,6 +118,7 @@ impl SettingsPanel {
             store,
             integration,
             updater,
+            sync_form,
             reports_usage,
             highlight_rules,
             shortcuts,
@@ -243,7 +250,7 @@ struct Category {
 type CategoryGroups = fn(&SettingsPanel, &App) -> Vec<SettingGroup>;
 
 /// The categories, in the order the left column lists them.
-const CATEGORIES: [Category; 7] = [
+const CATEGORIES: [Category; 8] = [
     Category {
         title: "settings.category.appearance",
         icon: CatalogIcon::Palette,
@@ -273,6 +280,11 @@ const CATEGORIES: [Category; 7] = [
         title: "settings.category.application",
         icon: CatalogIcon::AppWindow,
         groups: application_groups,
+    },
+    Category {
+        title: "settings.category.sync",
+        icon: CatalogIcon::Cloud,
+        groups: sync_groups,
     },
     Category {
         title: "settings.category.about",
@@ -625,6 +637,11 @@ fn application_groups(panel: &SettingsPanel, _: &App) -> Vec<SettingGroup> {
             )
             .description(t!("settings.import.xshell_description"))]),
     ]
+}
+
+/// 云同步: the account, and where syncing stands.
+fn sync_groups(panel: &SettingsPanel, cx: &App) -> Vec<SettingGroup> {
+    SyncForm::groups(&panel.sync_form, &panel.focus_handle, cx)
 }
 
 /// 外部 CLI: whether the `shellrs` command may use the saved hosts, the

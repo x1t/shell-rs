@@ -8,10 +8,11 @@ use gpui_kit::*;
 
 use crate::app::{
     CatalogIcon, NewLocalTerminal, NewTemporaryConnection, ShowCredentials, ShowForwards,
-    ShowHosts, ShowUpdate, ToggleHostPanel, ToggleTheme,
+    ShowHosts, ShowUpdate, SyncNow, ToggleHostPanel, ToggleTheme,
 };
 use crate::i18n::t;
 use crate::shared::tinted;
+use crate::sync::SyncBadge;
 use crate::update::UpdateBadge;
 
 use super::sidebar::SidebarMode;
@@ -23,15 +24,18 @@ use super::sidebar::SidebarMode;
 ///
 /// `sidebar` is what the left dock is showing, or `None` while it is hidden;
 /// `forwards` is how many port forwards are running; `update` is the
-/// newer ShellRS waiting to be installed, when there is one.
+/// newer ShellRS waiting to be installed, when there is one; `sync` is
+/// 云同步's 立即同步, while logged in.
 pub fn render_title_bar(
     sidebar: Option<SidebarMode>,
     forwards: usize,
     update: Option<UpdateBadge>,
+    sync: Option<SyncBadge>,
     target: &FocusHandle,
     cx: &App,
 ) -> TitleBar {
     let dark = cx.theme().is_dark();
+    let sync_target = target.clone();
     let (mode, toggle, temporary, new_local, theme, show_update) = (
         target.clone(),
         target.clone(),
@@ -102,7 +106,24 @@ pub fn render_title_bar(
                                 }
                             }),
                     ),
-                ),
+                )
+                .children(sync.map(|sync| {
+                    // Beside the lists it keeps in step; it turns while a
+                    // round runs.
+                    div().on_mouse_down(MouseButton::Left, no_drag).child(
+                        Button::new("sync-now-title")
+                            .ghost()
+                            .small()
+                            .icon(CatalogIcon::RefreshCw)
+                            .loading(sync.busy)
+                            .when(sync.trouble, |button| button.text_color(cx.theme().warning))
+                            .tooltip(sync.label.clone())
+                            .accessibility_label(t!("sync.settings.sync_now"))
+                            .on_click(move |_, window, cx| {
+                                sync_target.dispatch_action(&SyncNow, window, cx)
+                            }),
+                    )
+                })),
         )
         .child(
             h_flex()
