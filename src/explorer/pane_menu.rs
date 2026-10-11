@@ -2,7 +2,7 @@
 //! and the toolbar's bookmark and 新建 menus. Each item dispatches the same
 //! `ExplorerCommand` as the toolbar button with that verb.
 
-use super::{ExplorerId, FileSizeFormat, NewEntryKind, PaneSide, PreviewKind};
+use super::{ExplorerId, ExternalEditor, FileSizeFormat, NewEntryKind, PaneSide, PreviewKind};
 use crate::app::{
     CatalogIcon, ExplorerAction, ExplorerCommand, SetFileSizeFormat, ToggleHiddenFiles,
 };
@@ -22,6 +22,8 @@ pub(super) struct PaneMenuState {
     pub edits_file: Option<String>,
     /// How that file can be previewed, if it can.
     pub preview_kind: Option<PreviewKind>,
+    /// The editors of other makers on this computer it can be opened in.
+    pub editors: Vec<ExternalEditor>,
     pub can_go_up: bool,
     pub can_go_home: bool,
     pub can_go_back: bool,
@@ -69,12 +71,24 @@ pub(super) fn item_menu(menu: PopupMenu, state: &PaneMenuState) -> PopupMenu {
                 Icon::new(CatalogIcon::Eye),
                 state.action(ExplorerCommand::Preview {
                     remote,
-                    path: Some(path),
+                    path: Some(path.clone()),
                 }),
             )
         } else {
             menu
         };
+        // Any file, picture or not: those editors know what they open.
+        let menu = state.editors.iter().fold(menu, |menu, &editor| {
+            menu.menu_with_icon(
+                t!("explorer.command.open_in", editor = editor.name()),
+                Icon::new(CatalogIcon::ExternalLink),
+                state.action(ExplorerCommand::OpenWith {
+                    remote,
+                    path: path.clone(),
+                    editor,
+                }),
+            )
+        });
         menu.separator()
     } else {
         menu

@@ -1,6 +1,6 @@
 use super::{
-    ClickMode, CursorMotion, ExplorerId, FileEntry, FileListing, FileSizeFormat, LoadIntent,
-    NavigationHistory, PreviewKind, Selection, ShowHiddenFiles, child_path,
+    ClickMode, CursorMotion, ExplorerId, ExternalEditors, FileEntry, FileListing, FileSizeFormat,
+    LoadIntent, NavigationHistory, PreviewKind, Selection, ShowHiddenFiles, child_path,
     file_listing::{
         ListGeometry, ListPlaceholder, ListingContext, MenuHit, Pressed, accept_drops, offer_drop,
     },
@@ -1014,6 +1014,7 @@ impl FilePane {
                 [entry] if !entry.is_dir() && !entry.is_parent() => PreviewKind::of(&entry.name),
                 _ => None,
             },
+            editors: ExternalEditors::installed(cx),
             targets,
             can_go_up: self.parent_path() != self.path,
             can_go_home: !self.home.is_empty() && self.home != self.path,

@@ -704,3 +704,28 @@ explorer.properties.recursive:
 explorer.properties.dir_x:
   zh-CN: 为目录添加执行权限（X）
   en: Add execute permission to folders (X)
+
+explorer.command.open_in:
+  zh-CN: 用 %{editor} 打开
+  en: Open in %{editor}
+explorer.file.too_large_for_external:
+  zh-CN: 文件有 %{size}，用其他编辑器最多打开 %{limit}。
+  en: The file is %{size}. Other editors open files up to %{limit} from here.
+explorer.external.open_failed:
+  zh-CN: 没能用 %{editor} 打开“%{name}”
+  en: Couldn’t open “%{name}” in %{editor}
+explorer.external.sent:
+  zh-CN: 已上传“%{name}”
+  en: Uploaded “%{name}”
+explorer.external.send_failed:
+  zh-CN: 没能上传“%{name}”
+  en: Couldn’t upload “%{name}”
+explorer.external.changed_title:
+  zh-CN: 服务器上的“%{name}”已被修改
+  en: “%{name}” changed on the server
+explorer.external.changed:
+  zh-CN: 打开以后，服务器上的这个文件被改过了。要用这里保存的内容覆盖它吗？
+  en: It changed on the server after it was opened here. Overwrite it with what you saved?
+explorer.external.overwrite:
+  zh-CN: 覆盖
+  en: Overwrite

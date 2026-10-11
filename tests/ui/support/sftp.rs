@@ -172,13 +172,15 @@ impl SftpTransport for FakeSftpTransport {
                     if path.as_str().starts_with("/slow") {
                         continue;
                     }
-                    let result = match self.files.lock().unwrap().get(path.as_str()) {
-                        Some((bytes, _)) if bytes.len() as u64 > limit => {
-                            Err(ReadFailure::TooLarge(bytes.len() as u64))
-                        }
-                        Some((bytes, _)) => Ok(FileBytes::new(bytes.clone())),
-                        None => Err(ReadFailure::Failed("文件不存在".into())),
-                    };
+                    let result =
+                        match self.files.lock().unwrap().get(path.as_str()) {
+                            Some((bytes, _)) if bytes.len() as u64 > limit => {
+                                Err(ReadFailure::TooLarge(bytes.len() as u64))
+                            }
+                            Some((bytes, modified)) => Ok(FileBytes::new(bytes.clone())
+                                .with_stamp(fake_stamp(bytes, *modified))),
+                            None => Err(ReadFailure::Failed("文件不存在".into())),
+                        };
                     events.send_blocking(SftpEvent::BytesRead { request_id, result })?;
                 }
                 SftpCommand::WriteFile {

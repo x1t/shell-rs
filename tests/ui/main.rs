@@ -21,6 +21,7 @@ mod host_tree;
 mod import;
 mod monitor;
 mod netstat;
+mod open_with;
 mod processes;
 mod services;
 mod settings;

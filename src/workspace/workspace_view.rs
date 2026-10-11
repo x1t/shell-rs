@@ -284,6 +284,11 @@ impl Workspace {
         this.sync_cli_server(cx);
         this.xshell_folder = crate::import::default_folder();
 
+        // 用 VS Code / Zed 打开 in the SFTP lists. Looked for once.
+        cx.set_global(crate::explorer::ExternalEditors(Arc::new(
+            crate::explorer::SystemEditorLauncher::find(),
+        )));
+
         this.compose.update(cx, |compose, _| {
             compose.keep_history_in(crate::app::compose_history_path())
         });

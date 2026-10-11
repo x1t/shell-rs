@@ -1,6 +1,7 @@
 use super::{
     ExplorerId, FileLocation, FilePane, FilePaneEvent, LoadIntent, PaneSide, QueueId, QueueState,
     Removal, TransferJob, TransferQueue,
+    external_edit::ExternalCopies,
     file_edit::{Opening, PendingFile},
     pane_operations::PendingOperation,
     preview::PreviewKind,
@@ -67,6 +68,8 @@ pub struct ExplorerPanel {
     /// id; the files being read for a new editor tab.
     pub(super) files: HashMap<u64, PendingFile>,
     pub(super) opening: HashSet<FileLocation>,
+    /// Remote files open in VS Code or Zed through copies here.
+    pub(super) external: ExternalCopies,
     commands: async_channel::Sender<SftpCommand>,
     state: ConnectionState,
     /// The connection's latest round trip; none until the first one after
@@ -220,6 +223,7 @@ impl ExplorerPanel {
             next_operation: 0,
             files: HashMap::new(),
             opening: HashSet::new(),
+            external: ExternalCopies::default(),
             commands,
             state: ConnectionState::Connecting,
             latency: None,
@@ -683,6 +687,15 @@ impl ExplorerPanel {
             ExplorerCommand::Edit { remote, path } => {
                 if let Some(location) = self.edit_target(*remote, path.as_deref(), cx) {
                     self.open_file(location, Opening::Edit, window, cx);
+                }
+            }
+            ExplorerCommand::OpenWith {
+                remote,
+                path,
+                editor,
+            } => {
+                if let Some(location) = self.edit_target(*remote, Some(path), cx) {
+                    self.open_with(location, *editor, window, cx);
                 }
             }
             ExplorerCommand::Preview { remote, path } => {

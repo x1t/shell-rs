@@ -6,6 +6,8 @@
 //! be shown (too large, binary, not UTF-8) is explained here and never
 //! flashes a tab.
 
+use super::external_edit::EXTERNAL_LIMIT;
+use super::external_editor::ExternalEditor;
 use super::preview::{IMAGE_LIMIT, Preview, PreviewContent, PreviewKind, open_preview_dialog};
 use super::{ExplorerPanel, ExplorerPanelEvent, format_size};
 use crate::app::{ExplorerAction, ExplorerCommand, ExplorerDispatch as _};
@@ -68,11 +70,13 @@ pub(super) enum PendingFile {
     Write(oneshot::Sender<Result<FileStamp, SaveFailure>>),
 }
 
-/// Why a file is read: for the editor, or for a preview of its kind.
+/// Why a file is read: for the editor, for a preview of its kind, or for an
+/// editor of another maker.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Opening {
     Edit,
     Preview(PreviewKind),
+    External(ExternalEditor),
 }
 
 /// A file as read for an `Opening`: text, or an image's bytes.
@@ -133,6 +137,9 @@ impl ExplorerPanel {
             Opening::Preview(PreviewKind::Image(_)) => self
                 .read_bytes(&location, IMAGE_LIMIT, window, cx)
                 .map(|read| cx.spawn(async move |_, _| read.await.map(Opened::Bytes))),
+            Opening::External(_) => self
+                .read_bytes(&location, EXTERNAL_LIMIT, window, cx)
+                .map(|read| cx.spawn(async move |_, _| read.await.map(Opened::Bytes))),
             Opening::Edit | Opening::Preview(PreviewKind::Markdown) => self
                 .read_file(&location, window, cx)
                 .map(|read| cx.spawn(async move |_, _| read.await.map(Opened::Text))),
@@ -160,7 +167,10 @@ impl ExplorerPanel {
                     (Opening::Preview(kind), Ok(opened)) => {
                         this.show_preview(&location, kind, opened, window, cx)
                     }
-                    (Opening::Edit, Ok(Opened::Bytes(_))) => {}
+                    (Opening::External(editor), Ok(Opened::Bytes(file))) => {
+                        this.open_copy(location, editor, file, window, cx)
+                    }
+                    (Opening::Edit | Opening::External(_), Ok(_)) => {}
                     (_, Err(failure)) => this.refuse_open(&location, opening, failure, window, cx),
                 }
             });
@@ -410,11 +420,25 @@ impl ExplorerPanel {
             Opening::Preview(PreviewKind::Markdown) => {
                 (t!("explorer.file.preview_refused", name = name), EDIT_LIMIT)
             }
+            Opening::External(editor) => (
+                t!(
+                    "explorer.external.open_failed",
+                    name = name,
+                    editor = editor.name()
+                ),
+                EXTERNAL_LIMIT,
+            ),
         };
         let reason = match &failure {
             ReadFailure::TooLarge(size) => {
                 let (size, limit) = (format_size(*size), format_size(limit));
-                if editing {
+                if let Opening::External(_) = opening {
+                    t!(
+                        "explorer.file.too_large_for_external",
+                        size = size,
+                        limit = limit
+                    )
+                } else if editing {
                     t!(
                         "explorer.file.too_large_for_editor",
                         size = size,

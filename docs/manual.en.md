@@ -359,6 +359,8 @@ Text files can be edited right in ShellRS, remote and local alike (like WinSCP�
 - The bottom left of the window shows the SFTP connection the file goes through (“Local file” for local files), and the bottom right the cursor position, the encoding and the line endings (such as “UTF-8 · LF”).
 - Limits: only UTF-8 text files of 5 MB or less open (with or without a BOM; the BOM and CRLF line endings are kept on save). Larger files, binary files and files in other encodings such as GBK are refused with the reason; remote ones can be downloaded with “Download…” instead.
 
+**Opening in another editor**: with VS Code or Zed on this computer, a file’s context menu also has “Open in VS Code” and “Open in Zed”; an editor that isn’t installed isn’t offered. A local file opens where it is. A remote file is handled as WinSCP does: it’s downloaded to a temporary folder on this computer and opened there, and each time it’s saved in that editor, ShellRS uploads it over the SFTP tab’s connection and says “Uploaded” at the bottom right. If the file changed on the server after it was opened, you’re asked whether to overwrite it first. Opening the same remote file again (in either editor) uses the same copy. Any file can be opened this way, up to 50 MB. Once the SFTP tab is closed, saves no longer go back and the temporary folder is deleted; a save made while disconnected goes back with the next save after reconnecting.
+
 ### Preview
 
 Images (PNG, JPG, GIF, WebP, SVG, BMP, ICO, TIFF) and Markdown can be previewed, remote and local alike:

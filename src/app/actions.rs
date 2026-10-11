@@ -7,7 +7,7 @@ use crate::{
     cli::AgentKind,
     docker::{ContainerCommand, ContainerSubject, DockerObject},
     editor::EditorId,
-    explorer::{ExplorerId, FileSizeFormat, PaneSide},
+    explorer::{ExplorerId, ExternalEditor, FileSizeFormat, PaneSide},
     host::{
         CredentialId, ForwardId, GroupId, HostId, HostNode, NodeDrop, SnippetCategoryId,
         SnippetDrop, SnippetId,
@@ -487,6 +487,13 @@ pub enum ExplorerCommand {
     Edit {
         remote: bool,
         path: Option<String>,
+    },
+    /// 用 VS Code / Zed 打开: a file in an editor of another maker; a
+    /// remote one through a copy here whose saves go back.
+    OpenWith {
+        remote: bool,
+        path: String,
+        editor: ExternalEditor,
     },
     /// 预览: show an image or a Markdown file, `path` or else the one under
     /// the cursor.

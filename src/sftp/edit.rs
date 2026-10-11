@@ -216,28 +216,42 @@ impl SaveFailure {
     }
 }
 
-/// A whole file read as it is, for a preview: an image, say.
+/// A whole file read as it is, for a preview (an image, say) or for an
+/// editor of another maker, with what it was when read.
 #[derive(Clone, PartialEq, Eq)]
-pub struct FileBytes(Vec<u8>);
+pub struct FileBytes {
+    bytes: Vec<u8>,
+    stamp: FileStamp,
+}
 
 impl FileBytes {
+    /// Bytes with no modification time known.
     pub fn new(bytes: Vec<u8>) -> Self {
-        Self(bytes)
+        let stamp = FileStamp::new(bytes.len() as u64, None);
+        Self { bytes, stamp }
+    }
+    pub fn with_stamp(mut self, stamp: FileStamp) -> Self {
+        self.stamp = stamp;
+        self
     }
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.bytes.len()
     }
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.bytes.is_empty()
+    }
+    /// What the file was when read: a write back checks it is still that.
+    pub fn stamp(&self) -> FileStamp {
+        self.stamp
     }
     pub fn into_inner(self) -> Vec<u8> {
-        self.0
+        self.bytes
     }
 }
 
 impl std::fmt::Debug for FileBytes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "FileBytes({} bytes)", self.0.len())
+        write!(f, "FileBytes({} bytes)", self.bytes.len())
     }
 }
 
@@ -256,8 +270,8 @@ pub(crate) async fn read_whole<F: RemoteFs>(
     path: &RemotePath,
     limit: u64,
 ) -> Result<FileBytes> {
-    let (bytes, _) = read_bytes(fs, path, limit, false).await?;
-    Ok(FileBytes(bytes))
+    let (bytes, stamp) = read_bytes(fs, path, limit, false).await?;
+    Ok(FileBytes::new(bytes).with_stamp(stamp))
 }
 
 /// `stat`, refuse what is not a file or too large, then read it all. For
@@ -302,10 +316,10 @@ pub fn read_local_bytes(
     path: &std::path::Path,
     limit: u64,
 ) -> Result<FileBytes, ReadFailure> {
-    let (bytes, _) = provider
+    let (bytes, stamp) = provider
         .read_file(path, limit)
         .map_err(ReadFailure::from_error)?;
-    Ok(FileBytes(bytes))
+    Ok(FileBytes::new(bytes).with_stamp(stamp))
 }
 
 /// Write the editor's bytes over a local file through `provider`. Blocking.
