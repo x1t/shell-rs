@@ -84,7 +84,7 @@ use super::{
     status_bar::WorkspaceStatus,
     title_bar::render_title_bar,
     tool_sidebar::{ToolSidebar, render_tool_switch},
-    tools::{TOOL_SIDEBAR_WIDTH, set_right_dock_open},
+    tools::{TOOL_SIDEBAR_OPEN_WIDTH, set_right_dock_open},
     window_state::{WindowState, window_placement},
 };
 
@@ -543,8 +543,9 @@ impl Workspace {
                 window,
                 cx,
             );
-            area.set_dock_size(DockPlacement::Right, TOOL_SIDEBAR_WIDTH, window, cx);
-            // Hidden until a tool is picked; see `set_right_dock_open`.
+            area.set_dock_size(DockPlacement::Right, TOOL_SIDEBAR_OPEN_WIDTH, window, cx);
+            // Hidden until an SSH terminal is in front; see
+            // `set_right_dock_open`.
             set_right_dock_open(area, false, window, cx);
             area.set_dock_collapsible(DockPlacement::Right, false, window, cx);
         });
@@ -590,7 +591,8 @@ impl Workspace {
             next_explorer_id: 1,
             active_tab: None,
             tool_terminal_choice: None,
-            tool_sidebar_wanted: false,
+            // 命令片段 opens with the first SSH terminal.
+            tool_sidebar_wanted: true,
             prompt_queue: VecDeque::new(),
             active_prompt: None,
             focus_handle,

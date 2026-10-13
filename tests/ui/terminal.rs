@@ -843,7 +843,11 @@ async fn the_status_bar_shows_the_size_of_the_terminal_in_front(cx: &mut TestApp
             .try_find("status-terminal-size")
             .is_some_and(|element| element.label() == Some(size.as_str()))
     };
-    // Laid out in the window, not the 80 columns it starts with.
+    // Laid out in the window, not the 80 columns it starts with: the
+    // right sidebar, open from the start, out of the way.
+    in_frame(cx, handle, |window, cx| {
+        window.dispatch_action(Box::new(ToggleToolSidebar), cx)
+    });
     cx.wait_for(handle.into(), Duration::from_secs(2), |window, cx| {
         columns(cx) > 80 && shows_its_size(window, cx)
     })

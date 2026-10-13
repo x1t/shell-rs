@@ -22,11 +22,11 @@ use crate::app::{
 };
 use crate::host::{HostStore, Snippet, SnippetCategoryId, SnippetDrop, SnippetId};
 use crate::i18n::{UiLocale, t, tn};
-use crate::shared::{command_tooltip, one_line};
+use crate::shared::whole_command_tooltip;
 
-/// From this wide the cards go two to a line: the sidebar opens at 320 px
-/// with one, and a card keeps room for a name and a command beside another.
-const TWO_COLUMNS_FROM: Pixels = px(480.);
+/// From this wide the cards go two to a line: the sidebar opens at 480 px
+/// with two, and a card keeps room for its name beside another.
+const TWO_COLUMNS_FROM: Pixels = px(400.);
 
 /// 命令片段: the commands kept for every host, in categories one level
 /// deep. A click puts one on the input line of the SSH terminal in front to
@@ -568,7 +568,7 @@ fn render_category(
         )
 }
 
-/// A snippet's card: its name, and its command on one line below.
+/// A snippet's card: its name; the command is in its tooltip.
 ///
 /// What a click does is not the same for every snippet, so the pointer on
 /// a card shows it at the right: ⚡ for one a click runs, ▶ 执行 for one a
@@ -583,7 +583,6 @@ fn render_snippet(
     cx: &App,
 ) -> impl IntoElement {
     let id = snippet.id;
-    let line = one_line(&snippet.command);
     let runs = snippet.run_on_click;
     // A click runs it when the snippet says so, and only types it
     // otherwise.
@@ -595,20 +594,16 @@ fn render_snippet(
         command: snippet.command.clone(),
         run: true,
     };
-    let tooltip = command_tooltip(&snippet.command, cx);
+    let tooltip = whole_command_tooltip(&snippet.command, cx);
     let card = SharedString::from(format!("snippet-card:{}", id.0));
     h_flex()
         .id(("snippet", id.0))
         .test_support()
         .group(card.clone())
         .aria_label(if runs {
-            format!(
-                "{} · {line} · {}",
-                snippet.name,
-                t!("snippets.card.runs_on_click")
-            )
+            format!("{} · {}", snippet.name, t!("snippets.card.runs_on_click"))
         } else {
-            format!("{} · {line}", snippet.name)
+            snippet.name.to_string()
         })
         .w_full()
         .gap_2()
@@ -636,31 +631,18 @@ fn render_snippet(
             menu_hit.replace(Some(MenuHit::Snippet(id)));
             focus.focus(window, cx);
         })
-        // The whole of a command too long for its line.
-        .when_some(tooltip, |card, tooltip| card.tooltip(tooltip))
+        .tooltip(tooltip)
         .when_some(drag, |card, drag| {
             draggable(card, id, snippet.name.clone(), drag, dispatch.clone())
         })
         .child(
-            v_flex()
+            div()
                 .flex_1()
                 .min_w_0()
-                .gap_0p5()
-                .child(
-                    div()
-                        .truncate()
-                        .text_sm()
-                        .font_weight(FontWeight::MEDIUM)
-                        .child(snippet.name.clone()),
-                )
-                .child(
-                    div()
-                        .truncate()
-                        .font_family(cx.theme().mono_font_family.clone())
-                        .text_xs()
-                        .text_color(cx.theme().muted_foreground)
-                        .child(line),
-                ),
+                .truncate()
+                .text_sm()
+                .font_weight(FontWeight::MEDIUM)
+                .child(snippet.name.clone()),
         )
         .child(
             div()
@@ -668,7 +650,7 @@ fn render_snippet(
                 .invisible()
                 .group_hover(card, |style| style.visible())
                 .child(
-                    // As tall as the card's two lines allow: an easy target.
+                    // As tall as the card allows: an easy target.
                     Button::new(("snippet-run", id.0))
                         .ghost()
                         .map(|button| {

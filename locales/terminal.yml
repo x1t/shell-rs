@@ -64,9 +64,6 @@ terminal.notice.error:
 terminal.command.not_connected:
   zh-CN: 终端没有连接
   en: The terminal isn’t connected
-terminal.command.full_screen:
-  zh-CN: 终端里正在运行全屏程序，先退出它
-  en: A full-screen program is running in the terminal. Quit it first
 terminal.command.multiline:
   zh-CN: 这是一条多行命令，在这个终端里只能直接执行
   en: This is a multi-line command, which this terminal can only run directly

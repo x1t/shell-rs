@@ -370,7 +370,7 @@ async fn sixty_four_cores_show_one_row_until_unfolded(cx: &mut TestAppContext) {
 
     // One row at first: as many as fit beside the gauge.
     let first_row = bars(cx);
-    assert_eq!(first_row.len(), 23);
+    assert_eq!(first_row.len(), 43);
     assert_eq!(rows(&first_row), 1);
     in_frame(cx, handle, |window, _| {
         let toggle = window.find("monitor-cores-toggle");
@@ -378,14 +378,14 @@ async fn sixty_four_cores_show_one_row_until_unfolded(cx: &mut TestAppContext) {
         assert_eq!(toggle.checked(), Some(false));
     });
 
-    // Unfolded, all of them, wrapping onto three rows inside the column;
+    // Unfolded, all of them, wrapping onto two rows inside the column;
     // the share sits at the column's right edge.
     in_frame(cx, handle, |window, cx| {
         window.click("monitor-cores-toggle", cx)
     });
     let all = bars(cx);
     assert_eq!(all.len(), 64);
-    assert_eq!(rows(&all), 3);
+    assert_eq!(rows(&all), 2);
     in_frame(cx, handle, |window, _| {
         let column_right = window.find("monitor-cpu-usage").bounds().right();
         assert!(all.iter().all(|bar| bar.right() <= column_right));

@@ -42,9 +42,13 @@ use super::{
     tool_sidebar::{ToolSidebar, ToolTerminal},
 };
 
-/// How wide the right sidebar opens, and the narrowest it can be dragged:
-/// the monitor's and the connections' cards are laid out for this width.
+/// The narrowest the right sidebar can be dragged: the monitor's and the
+/// connections' cards are laid out for this width.
 pub(super) const TOOL_SIDEBAR_WIDTH: Pixels = px(320.);
+
+/// How wide the right sidebar opens: 命令片段, the tool it starts with, has
+/// its cards two to a line.
+pub(super) const TOOL_SIDEBAR_OPEN_WIDTH: Pixels = px(480.);
 
 impl Workspace {
     /// The SSH terminal the right sidebar works on: the one in front last

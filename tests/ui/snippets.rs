@@ -50,7 +50,6 @@ async fn open_snippets(
         window.activate_window();
         window.click(("terminal-tab", INITIAL_WEB_TERMINAL), cx)
     });
-    in_frame(cx, handle, |window, cx| window.click("tool-snippets", cx));
     let terminal = RemoteTerminalId(INITIAL_WEB_TERMINAL);
     cx.wait_for(handle.into(), Duration::from_secs(5), |_, cx| {
         remote_lifecycle(&workspace, terminal, cx).accepts_input()
@@ -115,21 +114,24 @@ async fn snippets_are_listed_by_category_and_a_click_puts_one_on_the_line(cx: &m
             Some("共 4 个片段 · 2 个分类")
         );
         // Docker, then 日志, each by name; the rest last, under 未分类.
+        // Two to a line, in their order.
         let order = [
             top(window, "snippet-category:2"),
             top(window, ("snippet", CONTAINERS)),
-            top(window, ("snippet", IMAGES)),
             top(window, "snippet-category:1"),
             top(window, ("snippet", JOURNAL)),
             top(window, "snippet-category:none"),
             top(window, ("snippet", DISK)),
         ];
         assert!(order.windows(2).all(|pair| pair[0] < pair[1]), "{order:?}");
-        assert_eq!(window.find("snippet-category:2").label(), Some("Docker 2"));
-        assert_eq!(
-            window.find(("snippet", CONTAINERS)).label(),
-            Some("容器 · docker ps -a")
+        let (containers, images) = (
+            window.find(("snippet", CONTAINERS)).bounds(),
+            window.find(("snippet", IMAGES)).bounds(),
         );
+        assert_eq!(containers.top(), images.top());
+        assert!(containers.left() < images.left());
+        assert_eq!(window.find("snippet-category:2").label(), Some("Docker 2"));
+        assert_eq!(window.find(("snippet", CONTAINERS)).label(), Some("容器"));
     });
 
     // A click puts it on the line in place of what is typed there, and the
@@ -163,7 +165,7 @@ async fn snippets_are_listed_by_category_and_a_click_puts_one_on_the_line(cx: &m
     in_frame(cx, handle, |window, _| {
         assert_eq!(
             window.find(("snippet", JOURNAL)).label(),
-            Some("系统日志 · journalctl -f · 点击时自动执行")
+            Some("系统日志 · 点击时自动执行")
         );
     });
     let before = factory.written_text().len();
@@ -238,7 +240,7 @@ async fn a_snippet_is_made_edited_and_deleted(cx: &mut TestAppContext) {
     in_frame(cx, handle, |window, _| {
         assert_eq!(
             window.find(("snippet", 1u64)).label(),
-            Some("查看端口 · ss -tlnp · 点击时自动执行")
+            Some("查看端口 · 点击时自动执行")
         );
         assert_eq!(window.find("snippets-summary").label(), Some("共 1 个片段"));
     });
@@ -380,23 +382,12 @@ async fn the_sidebar_follows_a_switch_to_english(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
-async fn a_wide_sidebar_puts_the_snippets_two_to_a_line(cx: &mut TestAppContext) {
+async fn the_snippets_go_two_to_a_line_unless_the_sidebar_is_narrow(cx: &mut TestAppContext) {
     let (handle, workspace, _) = open_snippets(cx, store_with_snippets()).await;
-    // At the width it opens with, one under the other.
-    in_frame(cx, handle, |window, _| {
-        assert!(top(window, ("snippet", CONTAINERS)) < top(window, ("snippet", IMAGES)));
-    });
-
-    cx.update_window(handle.into(), |_, window, cx| {
-        let area = workspace.read(cx).dock_area().clone();
-        area.update(cx, |area, cx| {
-            area.set_dock_size(DockPlacement::Right, px(560.), window, cx)
-        });
-    })
-    .unwrap();
     // The list goes by the width it had last frame.
     in_frame(cx, handle, |window, cx| window.simulate_next_frame(cx));
 
+    // At the width it opens with:
     in_frame(cx, handle, |window, _| {
         let containers = window.find(("snippet", CONTAINERS)).bounds();
         let images = window.find(("snippet", IMAGES)).bounds();
@@ -409,6 +400,19 @@ async fn a_wide_sidebar_puts_the_snippets_two_to_a_line(cx: &mut TestAppContext)
         assert!(top(window, "snippet-category:1") > containers.top());
         let journal = window.find(("snippet", JOURNAL)).bounds();
         assert_eq!(journal.size.width, containers.size.width);
+    });
+
+    // Dragged to its narrowest, one under the other.
+    cx.update_window(handle.into(), |_, window, cx| {
+        let area = workspace.read(cx).dock_area().clone();
+        area.update(cx, |area, cx| {
+            area.set_dock_size(DockPlacement::Right, px(320.), window, cx)
+        });
+    })
+    .unwrap();
+    in_frame(cx, handle, |window, cx| window.simulate_next_frame(cx));
+    in_frame(cx, handle, |window, _| {
+        assert!(top(window, ("snippet", CONTAINERS)) < top(window, ("snippet", IMAGES)));
     });
 }
 
@@ -448,7 +452,8 @@ async fn a_snippet_is_dragged_into_place_and_into_another_category(cx: &mut Test
     });
     assert_eq!(order_in(&workspace, Some(DOCKER), cx), ["镜像", "容器"]);
     in_frame(cx, handle, |window, _| {
-        assert!(top(window, ("snippet", IMAGES)) < top(window, ("snippet", CONTAINERS)));
+        let left = |window: &mut gpui_kit::Window, id| window.find(("snippet", id)).bounds().left();
+        assert!(left(window, IMAGES) < left(window, CONTAINERS));
     });
 
     // Onto a category's heading: last in it.

@@ -1,4 +1,5 @@
-//! A shell command shown on one line of a card: 历史命令's and 命令片段's.
+//! A shell command on a right-sidebar card: 历史命令's line, and the tooltip
+//! with the whole of it, 命令片段's too.
 
 use gpui_kit::component::{ActiveTheme as _, tooltip::Tooltip};
 use gpui_kit::*;
@@ -22,9 +23,18 @@ pub fn command_tooltip(
     if command.chars().count() <= SHOWN_CHARACTERS && !command.contains('\n') {
         return None;
     }
+    Some(whole_command_tooltip(command, cx))
+}
+
+/// The tooltip that shows the whole of `command`, for a card that does not
+/// show it.
+pub fn whole_command_tooltip(
+    command: &str,
+    cx: &App,
+) -> impl Fn(&mut Window, &mut App) -> AnyView + 'static {
     let command = SharedString::from(command.to_owned());
     let mono = cx.theme().mono_font_family.clone();
-    Some(move |window: &mut Window, cx: &mut App| {
+    move |window: &mut Window, cx: &mut App| {
         let (command, mono) = (command.clone(), mono.clone());
         Tooltip::element(move |_, _| {
             div()
@@ -34,5 +44,5 @@ pub fn command_tooltip(
                 .child(command.clone())
         })
         .build(window, cx)
-    })
+    }
 }

@@ -324,8 +324,9 @@ impl TerminalEngine {
 
     /// Put `command` on the shell's input line, as a paste, and with `run`
     /// press Enter: what a click in 历史命令 and 命令片段 does. With
-    /// `replace`, in place of what is typed there. Says why not while the
-    /// shell is not running or a full-screen program has the keys.
+    /// `replace`, in place of what is typed there. Goes to a full-screen
+    /// program too, as in Xshell: tmux is one, with a shell inside. Says why
+    /// not while the shell is not running.
     pub fn enter_command(
         &self,
         command: &str,
@@ -1101,18 +1102,14 @@ fn encode_paste(text: &str, mode: TermMode) -> Vec<u8> {
 /// emacs keys of bash, zsh and fish alike), then the command as a paste,
 /// then Enter to run it.
 ///
-/// A full-screen program would take those keys for its own. A command of
-/// several lines can only be put on the line in a bracketed paste: without
-/// one, its first newline would run it.
+/// A command of several lines can only be put on the line in a bracketed
+/// paste: without one, its first newline would run it.
 fn encode_command(
     command: &str,
     run: bool,
     replace: bool,
     mode: TermMode,
 ) -> Result<Vec<u8>, SharedString> {
-    if mode.contains(TermMode::ALT_SCREEN) {
-        return Err(t!("terminal.command.full_screen"));
-    }
     if !run && command.contains('\n') && !mode.contains(TermMode::BRACKETED_PASTE) {
         return Err(t!("terminal.command.multiline"));
     }
@@ -1705,8 +1702,11 @@ mod tests {
         assert!(encode_command(lines, false, true, TermMode::BRACKETED_PASTE).is_ok());
         assert!(encode_command(lines, false, true, TermMode::default()).is_err());
         assert!(encode_command(lines, true, true, TermMode::default()).is_ok());
-        // vim and less have the keys to themselves.
-        assert!(encode_command("ls", true, true, TermMode::ALT_SCREEN).is_err());
+        // A full-screen program gets it too: tmux has a shell inside.
+        assert_eq!(
+            encode_command("ls", true, true, TermMode::ALT_SCREEN),
+            Ok(b"\x05\x15ls\r".to_vec())
+        );
     }
 
     #[test]

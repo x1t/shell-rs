@@ -404,6 +404,12 @@ fn both_tabs_of_one_host_stay_closable(cx: &mut TestAppContext) {
     })
     .unwrap();
     cx.run_until_parked();
+    // The right sidebar out of the way, for room on the tab bar.
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.dispatch_action(Box::new(ToggleToolSidebar), cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
 
     // The terminal tab is active and focused; opening SFTP puts a second tab
     // for the same host beside it and activates that one.
@@ -680,7 +686,6 @@ fn show_snippets(cx: &mut TestAppContext, handle: WindowHandle<Root>) {
     in_frame(cx, handle, |window, cx| {
         window.click(("terminal-tab", INITIAL_WEB_TERMINAL), cx)
     });
-    in_frame(cx, handle, |window, cx| window.click("tool-snippets", cx));
 }
 
 /// A dialog holds what was typed into it: a click beside it does not close
@@ -845,13 +850,7 @@ fn the_tool_switch_shows_a_tool_and_hides_it_again(cx: &mut TestAppContext) {
         window.click(("terminal-tab", INITIAL_WEB_TERMINAL), cx)
     });
     let sidebar = ("tool-sidebar", INITIAL_WEB_TERMINAL);
-    in_frame(cx, handle, |window, _| {
-        // Hidden at first: the switch is there, none of it pressed.
-        assert!(window.try_find(sidebar).is_none());
-        assert_eq!(window.find("tool-snippets").checked(), Some(false));
-    });
-
-    in_frame(cx, handle, |window, cx| window.click("tool-snippets", cx));
+    // Open from the start, with 命令片段.
     in_frame(cx, handle, |window, _| {
         assert_eq!(window.find(sidebar).label(), Some("命令片段"));
         assert!(window.find("snippets").visible());
@@ -896,7 +895,6 @@ fn a_tool_follows_the_terminal_in_front_and_leaves_it_the_keyboard(cx: &mut Test
         window.activate_window();
         window.click(("terminal-tab", INITIAL_WEB_TERMINAL), cx);
     });
-    in_frame(cx, handle, |window, cx| window.click("tool-snippets", cx));
     in_frame(cx, handle, |window, _| {
         assert!(
             window
@@ -946,7 +944,6 @@ async fn the_tool_sidebar_goes_with_ssh_terminals_only(cx: &mut TestAppContext) 
     in_frame(cx, handle, |window, cx| {
         window.click(("terminal-tab", INITIAL_WEB_TERMINAL), cx)
     });
-    in_frame(cx, handle, |window, cx| window.click("tool-snippets", cx));
     let shown = |cx: &mut TestAppContext| {
         in_frame(cx, handle, |window, _| {
             let switch = window.try_find("tool-switch").is_some();
@@ -997,7 +994,6 @@ fn with_the_center_split_the_tool_sidebar_follows_the_focus(cx: &mut TestAppCont
         window.activate_window();
         window.click(("terminal-tab", INITIAL_WEB_TERMINAL), cx);
     });
-    in_frame(cx, handle, |window, cx| window.click("tool-snippets", cx));
     in_frame(cx, handle, |window, _| {
         assert_eq!(window.find("tool-sidebar-host").label(), Some("web-01"));
     });
@@ -1072,7 +1068,6 @@ async fn a_tab_dropped_over_the_terminal_takes_the_sidebar_with_it(cx: &mut Test
     in_frame(cx, handle, |window, cx| {
         window.click(("terminal-tab", INITIAL_WEB_TERMINAL), cx)
     });
-    in_frame(cx, handle, |window, cx| window.click("tool-snippets", cx));
     open_test_explorer(cx, handle).await;
 
     let explorer = cx.update(|cx| {
@@ -1158,12 +1153,11 @@ fn the_start_page_has_no_tool_switch(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
-fn the_tool_sidebar_drags_wider_but_never_narrower_than_it_opens(cx: &mut TestAppContext) {
+fn the_tool_sidebar_opens_wide_and_drags_no_narrower_than_320_px(cx: &mut TestAppContext) {
     let (handle, _) = open_workspace(cx);
     in_frame(cx, handle, |window, cx| {
         window.click(("terminal-tab", INITIAL_WEB_TERMINAL), cx)
     });
-    in_frame(cx, handle, |window, cx| window.click("tool-snippets", cx));
     let sidebar = ("tool-sidebar", INITIAL_WEB_TERMINAL);
     let bounds =
         |cx: &mut TestAppContext| in_frame(cx, handle, |window, _| window.find(sidebar).bounds());
@@ -1215,11 +1209,12 @@ fn the_tool_sidebar_drags_wider_but_never_narrower_than_it_opens(cx: &mut TestAp
         "{opened:?} → {wider:?}"
     );
 
-    // Dragged back past where it opened: it stops there.
-    drag(cx, point(wider.left() + px(2.), wider.center().y), 250.);
+    // Dragged far narrower: it stops at 320 px, 160 px narrower than it
+    // opened at 480 px.
+    drag(cx, point(wider.left() + px(2.), wider.center().y), 400.);
     let narrowed = bounds(cx);
     assert!(
-        (narrowed.size.width - opened.size.width).abs() < px(1.),
+        (narrowed.size.width - (opened.size.width - px(160.))).abs() < px(1.),
         "{opened:?} → {narrowed:?}"
     );
 }

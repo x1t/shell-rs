@@ -13,7 +13,7 @@ mod tab_menu;
 mod tint;
 
 pub use closable_tab::ClosableTabTitle;
-pub use command_line::{command_tooltip, one_line};
+pub use command_line::{command_tooltip, one_line, whole_command_tooltip};
 pub use dialog::{
     DeleteHandler, commit_footer, confirm_danger, confirm_delete, dismiss_form_error,
     form_error_notification, parse_port,
