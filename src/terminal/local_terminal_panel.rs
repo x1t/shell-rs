@@ -107,7 +107,7 @@ impl LocalTerminalPanel {
         window.focus(&focus, cx);
     }
 
-    fn display_title(&self, cx: &App) -> SharedString {
+    pub fn display_title(&self, cx: &App) -> SharedString {
         self.terminal.read(cx).title(cx).map_or_else(
             || self.default_title(),
             |title| short_title(&title).into_owned().into(),

@@ -1,5 +1,10 @@
 _version: 2
 
+# The menu of a tab group's tabs, at the end of its tab bar.
+workspace.tabs.all:
+  zh-CN: 所有标签
+  en: All tabs
+
 # The title bar.
 workspace.title_bar.hosts:
   zh-CN: 主机

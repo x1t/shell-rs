@@ -67,7 +67,7 @@ use crate::sftp::{
     SharedLocalDirectoryProvider, SharedSftpTransportProvider, SshSftpTransportProvider,
     SystemLocalDirectoryProvider, TransferDirection,
 };
-use crate::shared::{commit_footer, confirm_danger, open_rename_tab_dialog};
+use crate::shared::{RenamableTab as _, commit_footer, confirm_danger, open_rename_tab_dialog};
 use crate::terminal::{
     DEFAULT_FONT_SIZE, LocalPtyTransportProvider, LocalShell, LocalTerminalId, LocalTerminalPanel,
     LocalTerminalPanelEvent, RemoteTerminalId, SearchDirection,
@@ -553,6 +553,14 @@ impl Workspace {
         // Settled before the first `LayoutChanged` arrives, so the handler
         // does not take the initial state for a tab having just closed.
         skin.set_center_empty(terminals.is_empty(), cx);
+        skin.set_tab_labels({
+            let workspace = cx.weak_entity();
+            Rc::new(move |panel, cx| {
+                let workspace = workspace.upgrade()?;
+                let workspace = workspace.read(cx);
+                workspace.center_tab_label(workspace.center_tab_for_panel(panel)?, cx)
+            })
+        });
         let compose = {
             let (workspace, target) = (cx.weak_entity(), focus_handle.clone());
             cx.new(|cx| ComposeBar::new(workspace, target, window, cx))
@@ -1684,6 +1692,19 @@ impl Workspace {
     }
 
     /// The center tab a dock panel stands for, if it is one of ours.
+    /// The name a center tab shows, as its title has it.
+    fn center_tab_label(&self, tab: CenterTab, cx: &App) -> Option<SharedString> {
+        Some(match tab {
+            CenterTab::Terminal(id) => self.terminals.get(&id)?.read(cx).tab_title(cx),
+            CenterTab::Explorer(id) => self.explorers.get(&id)?.read(cx).tab_title(cx),
+            CenterTab::LocalTerminal(id) => {
+                self.local_terminals.get(&id)?.read(cx).display_title(cx)
+            }
+            CenterTab::Settings => t!("settings.tab.title"),
+            CenterTab::Editor(id) => self.editors.get(&id)?.read(cx).name().into(),
+        })
+    }
+
     pub(super) fn center_tab_for_panel(&self, panel: PanelId) -> Option<CenterTab> {
         let is = |entity: EntityId| PanelId::from(entity) == panel;
         self.terminals
