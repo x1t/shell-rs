@@ -300,3 +300,70 @@ fn a_change_here_goes_up_by_itself(cx: &mut TestAppContext) {
         assert_eq!(store.snippets()[0].command, "df -h");
     });
 }
+
+/// A host logging in with a key credential keeps it on both computers, and
+/// keeps it round after round: the other computer writes the key to a file
+/// of its own, and nothing turns the host back to a password.
+#[gpui_kit::test]
+fn a_host_keeps_its_key_credential_on_both_computers(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let key = dir.path().join("id_rsa");
+    std::fs::write(
+        &key,
+        "-----BEGIN RSA PRIVATE KEY-----\nKEY\n-----END RSA PRIVATE KEY-----\n",
+    )
+    .unwrap();
+    let server = server();
+    let (handle, workspace) = open_device(cx, &server);
+    let store = workspace.read_with(cx, |workspace, _| workspace.store().clone());
+    store.update(cx, |store, cx| {
+        let credential = store.insert_credential(
+            CredentialDraft::new("cong", CredentialKind::Key, "root")
+                .with_key_path(key.display().to_string()),
+            cx,
+        );
+        let web = store.host(HostId(WEB_01)).unwrap().draft();
+        store.update(HostId(WEB_01), web.with_credential(credential), cx);
+    });
+    let uses_cong = |store: &HostStore| {
+        let web = store.hosts().iter().find(|h| h.name == "web-01").unwrap();
+        web.credential
+            .and_then(|id| store.credential(id))
+            .map(|credential| credential.name.to_string())
+    };
+    assert_eq!(
+        store.read_with(cx, |s, _| uses_cong(s)).as_deref(),
+        Some("cong")
+    );
+
+    log_in_from_settings(cx, handle, PASSWORD);
+    let syncer = workspace.read_with(cx, |workspace, _| workspace.syncer().clone());
+    settle(cx, &syncer);
+
+    // The other computer, with a folder for keys as the app has.
+    let keys = dir.path().join("other-keys");
+    let other_store = cx.new(|_| HostStore::empty().with_key_dir(&keys));
+    let settings = cx.new(|_| settings_store());
+    let other = cx.new(|cx| Syncer::new(other_store.clone(), settings, cx));
+    other.update(cx, |syncer, cx| syncer.set_services(services(&server), cx));
+    log_in_other(cx, &other);
+    assert_eq!(
+        other_store.read_with(cx, |s, _| uses_cong(s)).as_deref(),
+        Some("cong")
+    );
+
+    // Round after round, as each computer starts again.
+    for _ in 0..2 {
+        sync_other(cx, &other);
+        syncer.update(cx, |syncer, cx| syncer.sync_now(cx));
+        settle(cx, &syncer);
+    }
+    assert_eq!(
+        other_store.read_with(cx, |s, _| uses_cong(s)).as_deref(),
+        Some("cong")
+    );
+    assert_eq!(
+        store.read_with(cx, |s, _| uses_cong(s)).as_deref(),
+        Some("cong")
+    );
+}

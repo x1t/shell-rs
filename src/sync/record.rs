@@ -60,7 +60,10 @@ pub struct GroupRecord {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CredentialRecord {
     pub name: String,
-    /// `password`, `key` or `agent`, as the database spells them.
+    /// `password`, `key` or `agent`, as the database spells them. Not
+    /// `kind` in the data: the payload's own tag is, and a second one makes
+    /// the record unreadable everywhere.
+    #[serde(rename = "credential_kind")]
     pub kind: String,
     pub user: String,
     pub sort_order: i64,
@@ -113,7 +116,9 @@ pub struct HostRecord {
 pub struct ForwardRecord {
     pub host: String,
     pub name: String,
-    /// `local`, `remote` or `dynamic`.
+    /// `local`, `remote` or `dynamic`. Not `kind` in the data, as with a
+    /// credential's.
+    #[serde(rename = "forward_kind")]
     pub kind: String,
     pub bind_host: String,
     pub bind_port: u16,
@@ -275,6 +280,64 @@ mod tests {
         assert!(text.starts_with(r#"{"kind":"host","#), "{text}");
         assert_eq!(Payload::from_bytes(&bytes), Some(payload));
         assert_eq!(Payload::from_bytes(b"{\"kind\":\"spaceship\"}"), None);
+    }
+
+    /// Every kind of record reads back as it was written: a field of its own
+    /// named like the payload's tag would make it unreadable.
+    #[test]
+    fn every_kind_of_record_round_trips() {
+        let secret = |text: &str| Some(SecretText::new(text));
+        let payloads = [
+            host("web", Some("g1")),
+            Payload::Group(GroupRecord {
+                name: "生产".into(),
+                parent: None,
+                sort_order: 0,
+            }),
+            Payload::Credential(CredentialRecord {
+                name: "cong".into(),
+                kind: "key".into(),
+                user: "root".into(),
+                sort_order: 0,
+                password: None,
+                private_key: secret("-----BEGIN RSA PRIVATE KEY-----"),
+                passphrase: secret("passphrase"),
+            }),
+            Payload::Forward(ForwardRecord {
+                host: "h1".into(),
+                name: "web".into(),
+                kind: "local".into(),
+                bind_host: "127.0.0.1".into(),
+                bind_port: 8080,
+                target_host: Some("localhost".into()),
+                target_port: Some(80),
+                auto_start: false,
+                sort_order: 0,
+            }),
+            Payload::SnippetCategory(CategoryRecord {
+                name: "Docker".into(),
+            }),
+            Payload::Snippet(SnippetRecord {
+                category: Some("k1".into()),
+                name: "容器".into(),
+                command: "docker ps -a".into(),
+                run_on_click: true,
+                sort_order: 0,
+            }),
+            Payload::Settings {
+                settings: serde_json::json!({ "appearance": "dark" }),
+            },
+            Payload::KnownHosts {
+                lines: vec!["bastion.test ssh-ed25519 AAAA".into()],
+            },
+        ];
+        for payload in payloads {
+            assert_eq!(
+                Payload::from_bytes(&payload.to_bytes()),
+                Some(payload.clone()),
+                "{payload:?}"
+            );
+        }
     }
 
     #[test]
