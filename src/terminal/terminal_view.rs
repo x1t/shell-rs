@@ -1538,10 +1538,23 @@ impl Element for TerminalElement {
                 .cell_at(window.mouse_position())
                 .and_then(|cell| links.at(cell))
                 .is_some();
+        // Otherwise an I-beam over the text, as in other terminals, and an
+        // arrow while a program has the mouse, since a click goes to it.
+        let program_has_mouse = view
+            .read(cx)
+            .engine
+            .read(cx)
+            .mode()
+            .intersects(TermMode::MOUSE_MODE);
+        let cursor = if pointer_on_link && opens_links(&window.modifiers()) {
+            CursorStyle::PointingHand
+        } else if program_has_mouse {
+            CursorStyle::Arrow
+        } else {
+            CursorStyle::IBeam
+        };
+        window.set_cursor_style(cursor, &hitbox);
         if pointer_on_link {
-            if opens_links(&window.modifiers()) {
-                window.set_cursor_style(CursorStyle::PointingHand, &hitbox);
-            }
             let view = view.clone();
             window.on_modifiers_changed(move |_, _, cx| view.update(cx, |_, cx| cx.notify()));
         }
