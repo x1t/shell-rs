@@ -83,7 +83,7 @@ fn log_in_other(cx: &mut TestAppContext, syncer: &Entity<Syncer>) {
 fn open_sync_settings(cx: &mut TestAppContext, handle: WindowHandle<Root>) {
     in_frame(cx, handle, |window, cx| window.click("open-settings", cx));
     in_frame(cx, handle, |window, cx| {
-        window.within("settings").click("0-6", cx)
+        window.within("settings").click("0-7", cx)
     });
 }
 

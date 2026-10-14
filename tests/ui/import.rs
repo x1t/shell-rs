@@ -57,7 +57,7 @@ fn open_import(
     in_frame(cx, handle, |window, cx| window.click("open-settings", cx));
     // 应用 comes right before 关于.
     in_frame(cx, handle, |window, cx| {
-        window.within("settings").click("0-5", cx)
+        window.within("settings").click("0-6", cx)
     });
     in_frame(cx, handle, |window, cx| window.click("import-xshell", cx));
     (handle, workspace)
