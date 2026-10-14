@@ -387,7 +387,7 @@ cargo test -- --ignored                     # 会读写真实钥匙串的测试�
 - **查找条必须是终端 `div` 的兄弟**，不能是子元素，否则输入会被发给 shell；它还要 `.occlude()`。
 - **清屏只在本地模拟器里做**，全屏程序运行时不做。终端里的 ⌘K 是清屏，比全局的 `FocusSearch` 深一层，所以优先。
 - **本地终端每次打开、重启都向 `LocalTerminalTransportProvider` 要新的 factory**（同远程的 `factory_for`），带上当时设置里的 `LocalShell`；UI 测试注入 `FixedLocalTerminalTransportProvider`，它记下每次要的 shell。命令行在传输线程上解析（要查文件系统），拆不开（引号没配对）或起不来都报在终端里，报错里写着用户写的命令。
-- **终端字体走全局量 `TerminalFont`**（终端模块不依赖 settings），格子在下一帧 prepaint 时按新尺寸重排。
+- **终端字体走全局量 `TerminalFont`**（终端模块不依赖 settings），格子在下一帧 prepaint 时按新尺寸重排。「亚洲字体」（同 Xshell，用户要的）是 `TerminalFont::font` 里的 `Font.fallbacks`：平台只在主字体缺字时才用后备字体，所以主字体自带中文就用不上它；可选列表是带「中」字形的字体（`asian_font_families`，大多不等宽），留空是系统默认的后备。
 - **终端颜色走全局量 `TerminalColors`**（`theme.rs`）：`settings::apply` 按当前外观设成那一栏选中的主题，系统外观变化时也重设。终端格子、边距、选区、链接、颜色查询（OSC 4 / 10 / 11 / 12）和设置里的两个预览都从它取，不用界面主题的 `background` / `foreground`；查找高亮仍用界面的 `warning`。主题的 `key` 存进 `settings.json`，发布后不能改；读不出或深浅不符的 key 退回该外观的默认。
 - **界面配色由所选主题推出**（`settings/app_theme.rs`）：从 gpui-kit 默认的浅色或深色主题出发重新着色。灰色按它在默认背景与文字之间的位置，换到该主题背景与文字之间；默认里用作可读文字的灰色（对比度 ≥ 4.5）至少保留该主题正文对比度的 80%（最高 4.5）。`base.*` 按名字换成对应的 ANSI 色，其余彩色按色相换；`.light` 和彩色的 `*foreground` 删掉，交给 gpui-kit 自己推。ShellRS Light（以及「界面跟随主题」关闭时的浅色，`TerminalThemeSettings::app_theme`）直接用 gpui-kit 的默认浅色主题；ShellRS Dark（以及关闭时的深色）是 gpui-kit 默认深色主题按 `SOFT_DARK` 把每级灰换成炭灰，彩色不动。`settings::apply` 按名字（`theme_name`）判断要不要重建，把结果放进 `Theme` 的浅色或深色槽再 `Theme::change`。
 - **链接**：正则找出的地址和 OSC 8 标出的都算，只认 http / https（`links.rs`）；OSC 8 的格子优先于正则。一直画成蓝色（终端主题的 ANSI 蓝，悬停时亮蓝；界面主题的 `link` 和正文同色）加下划线，⌘ / Ctrl 单击才打开，普通单击照旧选文字。

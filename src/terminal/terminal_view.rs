@@ -1009,7 +1009,7 @@ impl Render for TerminalView {
             .key_context(TERMINAL_KEY_CONTEXT)
             .track_focus(&self.focus_handle)
             .size_full()
-            .font_family(font.family(cx))
+            .font(font.font(cx))
             .text_size(font.size)
             .aria_label((self.label)(cx))
             .on_action(cx.listener(|this, _: &SendTab, _, cx| {

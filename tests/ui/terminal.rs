@@ -689,7 +689,9 @@ async fn the_terminal_font_setting_reaches_open_terminals_and_the_preview(cx: &m
                 .map(str::to_string)
         };
         assert_eq!(field(window, 0), Some(format!("{default_family}（默认）")));
-        assert_eq!(field(window, 1).as_deref(), Some("16"));
+        // 亚洲字体 leaves Chinese to the system until one is chosen.
+        assert_eq!(field(window, 1).as_deref(), Some("自动（系统默认）"));
+        assert_eq!(field(window, 2).as_deref(), Some("16"));
         assert_eq!(
             window.find("terminal-font-preview").label(),
             Some(format!("{default_family} 16 px，行高 1.5").as_str())
@@ -698,21 +700,41 @@ async fn the_terminal_font_setting_reaches_open_terminals_and_the_preview(cx: &m
     .unwrap();
 
     // A family that is not installed, say from a file copied from another
-    // machine, gives way to the default instead of a wrong font.
+    // machine, gives way to the default instead of a wrong font; so does
+    // 亚洲字体, to the system's fallback.
     cx.update(|cx| {
         settings.update(cx, |settings, cx| {
             settings.update(
-                |settings| settings.terminal_font.family = Some("没有这个字体".into()),
+                |settings| {
+                    settings.terminal_font.family = Some("没有这个字体".into());
+                    settings.terminal_font.asian_family = Some("没有这个字体".into());
+                },
                 cx,
             )
         })
     });
     cx.run_until_parked();
     cx.update(|cx| {
-        assert_eq!(cx.global::<TerminalFont>().family, None);
+        let font = cx.global::<TerminalFont>();
+        assert_eq!((&font.family, &font.asian_family), (&None, &None));
+        assert_eq!(font.font(cx).fallbacks, None);
+        let saved = &settings.read(cx).settings().terminal_font;
+        assert_eq!(saved.family.as_deref(), Some("没有这个字体"));
+        assert_eq!(saved.asian_family.as_deref(), Some("没有这个字体"));
+    });
+    // An installed one goes ahead of the system's fallback, in the font
+    // the terminals lay their text out in.
+    cx.update(|cx| {
+        let font = TerminalFont {
+            asian_family: Some("Microsoft YaHei".into()),
+            ..TerminalFont::current(cx)
+        }
+        .font(cx);
+        assert_eq!(font.family, default_family);
         assert_eq!(
-            settings.read(cx).settings().terminal_font.family.as_deref(),
-            Some("没有这个字体")
+            font.fallbacks
+                .map(|fallbacks| fallbacks.fallback_list().to_vec()),
+            Some(vec!["Microsoft YaHei".to_string()])
         );
     });
     cx.update_window(handle.into(), |_, window, cx| {

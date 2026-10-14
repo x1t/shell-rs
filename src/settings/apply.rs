@@ -57,6 +57,10 @@ pub fn apply(settings: AppSettings, window: &mut Window, cx: &mut App) {
             .family
             .filter(|family| is_font_installed(family, cx))
             .map(SharedString::from),
+        asian_family: font
+            .asian_family
+            .filter(|family| is_font_installed(family, cx))
+            .map(SharedString::from),
         size: px(font.size),
         line_height: font.line_height,
     };

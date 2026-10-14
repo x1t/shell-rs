@@ -32,7 +32,7 @@ use crate::shared::{ClosableTabTitle, close_tab_items};
 use crate::sync::{SyncForm, Syncer};
 use crate::terminal::{
     FONT_SIZE_RANGE, LINE_HEIGHT_RANGE, TerminalColors, TerminalFont, TerminalFontPreview,
-    TerminalHighlights, is_font_installed, monospace_font_families,
+    TerminalHighlights, asian_font_families, is_font_installed, monospace_font_families,
 };
 use crate::update::{Phase, Tone, UpdateSnapshot, UpdateStep, Updater, build_info, platform};
 
@@ -76,6 +76,9 @@ pub struct SettingsPanel {
     /// The monospace families to choose the terminal font from; empty until
     /// the scan in the background comes back.
     font_families: &'static [SharedString],
+    /// The families with Chinese to choose 亚洲字体 from; empty until the
+    /// same scan comes back.
+    asian_font_families: &'static [SharedString],
     /// The category last shown, for coming back to it. `Settings` keeps its
     /// choice in element state, which goes while the tab is hidden; its
     /// page header records the category it draws.
@@ -112,11 +115,17 @@ impl SettingsPanel {
         // keeps the answer, so later tabs have it at once.
         let text_system = cx.text_system().clone();
         let font_scan = cx.spawn(async move |this, cx| {
-            let families = cx
-                .background_spawn(async move { monospace_font_families(&text_system) })
+            let (families, asian) = cx
+                .background_spawn(async move {
+                    (
+                        monospace_font_families(&text_system),
+                        asian_font_families(&text_system),
+                    )
+                })
                 .await;
             let _ = this.update(cx, |this, cx| {
                 this.font_families = families;
+                this.asian_font_families = asian;
                 cx.notify();
             });
         });
@@ -130,6 +139,7 @@ impl SettingsPanel {
             shortcuts,
             local_shell,
             font_families: &[],
+            asian_font_families: &[],
             shown_category: Rc::default(),
             focus_handle: cx.focus_handle(),
             tab_group: None,
@@ -375,6 +385,11 @@ fn terminal_groups(panel: &SettingsPanel, cx: &App) -> Vec<SettingGroup> {
             .items([
                 SettingItem::new(t!("settings.terminal.family"), font_family_field(panel, cx))
                     .description(t!("settings.terminal.family_description")),
+                SettingItem::new(
+                    t!("settings.terminal.asian_family"),
+                    asian_family_field(panel),
+                )
+                .description(t!("settings.terminal.asian_family_description")),
                 SettingItem::new(t!("settings.terminal.size"), font_size_field(store))
                     .description(t!("settings.terminal.size_description")),
                 SettingItem::new(
@@ -1297,6 +1312,47 @@ fn font_family_field(panel: &SettingsPanel, cx: &App) -> SettingField<SharedStri
         },
     )
     .default_value(default_family)
+}
+
+/// 亚洲字体: the families with Chinese, after 自动, which stores nothing and
+/// leaves those characters to the system's fallback.
+fn asian_family_field(panel: &SettingsPanel) -> SettingField<SharedString> {
+    let automatic = SharedString::default();
+    let options = std::iter::once((
+        automatic.clone(),
+        t!("settings.terminal.asian_family_automatic"),
+    ))
+    .chain(
+        panel
+            .asian_font_families
+            .iter()
+            .map(|family| (family.clone(), family.clone())),
+    )
+    .collect();
+
+    let (reader, writer) = (panel.store.clone(), panel.store.clone());
+    SettingField::scrollable_dropdown(
+        options,
+        move |cx| {
+            // A family no longer installed shows as 自动, which is what the
+            // terminal does then.
+            reader
+                .read(cx)
+                .settings()
+                .terminal_font
+                .asian_family
+                .filter(|family| is_font_installed(family, cx))
+                .map(SharedString::from)
+                .unwrap_or_default()
+        },
+        move |family: SharedString, cx| {
+            let family = (!family.is_empty()).then(|| family.to_string());
+            writer.update(cx, |store, cx| {
+                store.update(|settings| settings.terminal_font.asian_family = family, cx)
+            });
+        },
+    )
+    .default_value(automatic)
 }
 
 /// The terminal font size, a dropdown of whole pixels. Not a number input:

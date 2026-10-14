@@ -339,6 +339,9 @@ impl AppSettings {
 pub struct TerminalFontSettings {
     /// `None` is the theme's monospace family (Menlo on macOS).
     pub family: Option<String>,
+    /// 亚洲字体: the family for Chinese, Japanese and Korean the main one
+    /// lacks, as in Xshell. `None` leaves them to the system's fallback.
+    pub asian_family: Option<String>,
     /// Pixels.
     pub size: f32,
     /// A multiple of `size`.
@@ -349,6 +352,7 @@ impl Default for TerminalFontSettings {
     fn default() -> Self {
         Self {
             family: None,
+            asian_family: None,
             size: DEFAULT_FONT_SIZE,
             line_height: DEFAULT_LINE_HEIGHT,
         }
@@ -371,6 +375,7 @@ impl TerminalFontSettings {
         self.line_height =
             (clamp(self.line_height, LINE_HEIGHT_RANGE, DEFAULT_LINE_HEIGHT) * 100.).round() / 100.;
         self.family = self.family.filter(|family| !family.trim().is_empty());
+        self.asian_family = self.asian_family.filter(|family| !family.trim().is_empty());
         self
     }
 }
@@ -747,6 +752,7 @@ mod tests {
     fn terminal_font_numbers_are_kept_in_range_and_rounded() {
         let font = |size, line_height| TerminalFontSettings {
             family: Some("Menlo".into()),
+            asian_family: None,
             size,
             line_height,
         };
@@ -771,9 +777,15 @@ mod tests {
         );
         let blank = TerminalFontSettings {
             family: Some("  ".into()),
+            asian_family: Some("".into()),
             ..TerminalFontSettings::default()
         };
-        assert_eq!(blank.normalized().family, None);
+        let normalized = blank.normalized();
+        assert_eq!((normalized.family, normalized.asian_family), (None, None));
+        // A file from before 亚洲字体 leaves it to the system.
+        let settings: AppSettings =
+            serde_json::from_str(r#"{"terminal_font":{"family":"Menlo"}}"#).unwrap();
+        assert_eq!(settings.terminal_font.asian_family, None);
         // The default already is what the terminal had before.
         assert_eq!(
             TerminalFontSettings::default().normalized(),

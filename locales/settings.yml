@@ -87,6 +87,15 @@ settings.terminal.family:
 settings.terminal.family_description:
   zh-CN: 只列出等宽字体。
   en: Only monospaced fonts are listed.
+settings.terminal.asian_family:
+  zh-CN: 亚洲字体
+  en: Asian font
+settings.terminal.asian_family_description:
+  zh-CN: 中文、日文、韩文等上面的字体里没有的字用这个字体显示。上面的字体自带中文时，中文仍用它自己的。
+  en: Chinese, Japanese, Korean and other characters the font above lacks are shown in this one. A font above with Chinese of its own keeps it.
+settings.terminal.asian_family_automatic:
+  zh-CN: 自动（系统默认）
+  en: Automatic (system default)
 settings.terminal.size:
   zh-CN: 字号
   en: Font size

@@ -23,7 +23,7 @@ pub use engine::{TerminalCell, TerminalEngine, TerminalEvent, TerminalSnapshot};
 pub use exec::{ExecTarget, exec_answer};
 pub use font::{
     DEFAULT_FONT_SIZE, DEFAULT_LINE_HEIGHT, FONT_SIZE_RANGE, LINE_HEIGHT_RANGE, TerminalFont,
-    TerminalFontPreview, is_font_installed, monospace_font_families,
+    TerminalFontPreview, asian_font_families, is_font_installed, monospace_font_families,
 };
 pub use highlight::{
     HighlightColor, HighlightRule, HighlightSet, PatternError, TerminalHighlights, default_rules,

@@ -1,4 +1,4 @@
-//! The terminal font: family, size and line height. The settings set it as a
+//! The terminal font: family, 亚洲字体, size and line height. The settings set it as a
 //! global and every terminal view reads it, so a change reaches open tabs at
 //! once. Also the preview of it that the settings page shows.
 
@@ -24,6 +24,9 @@ pub const LINE_HEIGHT_RANGE: RangeInclusive<f32> = 1.0..=2.0;
 pub struct TerminalFont {
     /// `None` is the theme's monospace family.
     pub family: Option<SharedString>,
+    /// For the characters `family` lacks, Chinese among them, ahead of the
+    /// system's own fallback. `None` leaves them to the system.
+    pub asian_family: Option<SharedString>,
     pub size: Pixels,
     /// A multiple of `size`.
     pub line_height: f32,
@@ -35,6 +38,7 @@ impl Default for TerminalFont {
     fn default() -> Self {
         Self {
             family: None,
+            asian_family: None,
             size: px(DEFAULT_FONT_SIZE),
             line_height: DEFAULT_LINE_HEIGHT,
         }
@@ -51,6 +55,19 @@ impl TerminalFont {
         self.family
             .clone()
             .unwrap_or_else(|| cx.theme().mono_font_family.clone())
+    }
+
+    /// The font to lay terminal text out in: the family, and 亚洲字体 for
+    /// what it lacks. The platform only falls back for characters the family
+    /// has no glyph for, so a family with Chinese of its own keeps it.
+    pub fn font(&self, cx: &App) -> Font {
+        Font {
+            fallbacks: self
+                .asian_family
+                .as_ref()
+                .map(|family| FontFallbacks::from_fonts(vec![family.to_string()])),
+            ..font(self.family(cx))
+        }
     }
 
     /// The height of one row, on whole device pixels.
@@ -101,6 +118,26 @@ pub fn monospace_font_families(text_system: &TextSystem) -> &'static [SharedStri
     })
 }
 
+/// The installed families that have Chinese, for 亚洲字体, alphabetically:
+/// most are not monospace, so the list of those would leave them out.
+/// Loads every family like `monospace_font_families`, so it belongs off the
+/// main thread too; the answer is kept for the rest of the process.
+pub fn asian_font_families(text_system: &TextSystem) -> &'static [SharedString] {
+    static ASIAN: OnceLock<Vec<SharedString>> = OnceLock::new();
+    ASIAN.get_or_init(|| {
+        text_system
+            .all_font_names()
+            .into_iter()
+            .filter(|family| !family.starts_with('.'))
+            .filter(|family| {
+                let id = text_system.resolve_font(&font(family.clone()));
+                text_system.advance(id, px(16.), '中').is_ok() // i18n: keep
+            })
+            .map(SharedString::from)
+            .collect()
+    })
+}
+
 /// Sample lines in the terminal font, laid out the way a terminal lays them
 /// out: one glyph per cell, wide characters such as Chinese over two, rows
 /// at the terminal's row height. Colors are the terminal's.
@@ -140,7 +177,7 @@ impl RenderOnce for TerminalFontPreview {
             .w_full()
             .h(row_height * lines.len() as f32)
             .overflow_hidden()
-            .font_family(family)
+            .font(font.font(cx))
             .text_size(font.size)
             .child(
                 canvas(
