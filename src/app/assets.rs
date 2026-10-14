@@ -83,7 +83,8 @@ icon_assets!(
         Highlighter,
         GripVertical,
         Cloud,
-        FileSearch
+        FileSearch,
+        FolderInput
     ]
 );
 

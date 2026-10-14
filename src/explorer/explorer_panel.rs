@@ -101,6 +101,9 @@ pub struct ExplorerPanel {
     /// the queue. Kept here, not in element state, which goes the first
     /// frame another tab is shown instead: coming back would reset them.
     panes_split: Entity<ResizableState>,
+    /// Whether the local list shows: side by side with another SFTP tab,
+    /// one local list serves both, as the workspace says.
+    local_shown: bool,
     queue_split: Entity<ResizableState>,
     _subscriptions: Vec<Subscription>,
     _events: Task<()>,
@@ -241,6 +244,7 @@ impl ExplorerPanel {
             custom_title: None,
             last_remote: true,
             panes_split: cx.new(|_| ResizableState::default()),
+            local_shown: true,
             queue_split: cx.new(|_| ResizableState::default()),
             _subscriptions: subscriptions,
             _events: events_task,
@@ -457,6 +461,22 @@ impl ExplorerPanel {
         });
         self.remote
             .update(cx, |pane, cx| pane.set_available(state, transfer, cx));
+    }
+    pub fn local_shown(&self) -> bool {
+        self.local_shown
+    }
+
+    /// Show the local list or only the server's; hidden, the remote list is
+    /// the current pane, the one shortcuts and focus go to.
+    pub fn set_local_shown(&mut self, shown: bool, cx: &mut Context<Self>) {
+        if self.local_shown == shown {
+            return;
+        }
+        self.local_shown = shown;
+        if !shown {
+            self.set_current_pane(true, cx);
+        }
+        cx.notify();
     }
     /// WinSCP's current pane: the one used last, which takes focus back when
     /// the tab is shown again.
@@ -721,6 +741,21 @@ impl ExplorerPanel {
             ExplorerCommand::OpenDirectory { remote } => {
                 self.set_current_pane(*remote, cx);
                 self.open_directory(*remote, window, cx);
+            }
+            ExplorerCommand::FollowFileManager => {
+                // `dopusrt` takes some tens of milliseconds.
+                let folder = cx.background_spawn(async { super::file_manager_folder() });
+                cx.spawn_in(window, async move |this, cx| {
+                    let folder = folder.await;
+                    let _ = this.update_in(cx, |this, window, cx| match folder {
+                        Some(path) => this.navigate(false, path, LoadIntent::Visit, window, cx),
+                        None => window.push_notification(
+                            Notification::warning(t!("explorer.file_manager.none")),
+                            cx,
+                        ),
+                    });
+                })
+                .detach();
             }
             ExplorerCommand::CopyPath { remote } => {
                 let path = self.pane(*remote).read(cx).path();
@@ -1149,27 +1184,28 @@ impl Render for ExplorerPanel {
                 div().flex_1().min_h_0().child(
                     v_resizable(("explorer-queue", sid.0))
                         .with_state(&self.queue_split)
-                        .child(
-                            resizable_panel().child(
-                                h_resizable(("explorer-panes", sid.0))
-                                    .with_state(&self.panes_split)
-                                    .child(
-                                        // Half and half when the tab opens; the
-                                        // state then keeps where the user puts
-                                        // the divider.
-                                        resizable_panel()
-                                            .flex_basis(relative(0.5))
-                                            .size_range(px(320.)..Pixels::MAX)
-                                            .child(self.local.clone()),
-                                    )
-                                    .child(
-                                        resizable_panel()
-                                            .flex_basis(relative(0.5))
-                                            .size_range(px(280.)..Pixels::MAX)
-                                            .child(self.remote.clone()),
-                                    ),
-                            ),
-                        )
+                        .child(resizable_panel().child(if !self.local_shown {
+                            self.remote.clone().into_any_element()
+                        } else {
+                            h_resizable(("explorer-panes", sid.0))
+                                .with_state(&self.panes_split)
+                                .child(
+                                    // Half and half when the tab opens; the
+                                    // state then keeps where the user puts
+                                    // the divider.
+                                    resizable_panel()
+                                        .flex_basis(relative(0.5))
+                                        .size_range(px(320.)..Pixels::MAX)
+                                        .child(self.local.clone()),
+                                )
+                                .child(
+                                    resizable_panel()
+                                        .flex_basis(relative(0.5))
+                                        .size_range(px(280.)..Pixels::MAX)
+                                        .child(self.remote.clone()),
+                                )
+                                .into_any_element()
+                        }))
                         .child(
                             resizable_panel()
                                 .size(px(180.))

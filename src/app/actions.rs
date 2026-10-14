@@ -508,6 +508,9 @@ pub enum ExplorerCommand {
         remote: bool,
         path: Option<String>,
     },
+    /// 跳到文件管理器的文件夹: the local list goes to the folder Directory
+    /// Opus or Explorer, whichever was used last, shows.
+    FollowFileManager,
     /// WinSCP's 打开目录/书签 dialog: type a directory or pick a bookmark.
     OpenDirectory {
         remote: bool,

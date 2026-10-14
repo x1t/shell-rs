@@ -710,9 +710,9 @@ async fn files_copied_to_another_sftp_tab_go_through_this_computer(cx: &mut Test
     .await;
 }
 
-/// Remote rows dropped on another SFTP tab's local pane are downloaded by
-/// the tab they are from: the other one's server has nothing at their
-/// paths.
+/// Side by side, two SFTP tabs share the first one's local list; remote
+/// rows of the second dropped on it are downloaded by the tab they are
+/// from: the other one's server has nothing at their paths.
 #[gpui_kit::test]
 async fn remote_rows_dropped_on_another_tabs_local_pane_come_from_their_own_tab(
     cx: &mut TestAppContext,
@@ -767,16 +767,32 @@ async fn remote_rows_dropped_on_another_tabs_local_pane_come_from_their_own_tab(
     .unwrap();
     cx.run_until_parked();
 
-    // By its name, from db-01's remote pane to web-01's local one.
+    cx.wait_for(handle.into(), Duration::from_secs(2), |window, cx| {
+        window.render_frame(cx);
+        window
+            .within(("remote-pane", other))
+            .try_find("name:文件 甲.txt")
+            .is_some()
+    })
+    .await;
+    // One local list for the two, on the left.
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.render_frame(cx);
+        assert!(window.try_find(("local-pane", SFTP_TAB)).is_some());
+        assert!(window.try_find(("local-pane", other)).is_none());
+    })
+    .unwrap();
+
+    // By its name, from web-01's remote pane to db-01's local one.
     cx.update_window(handle.into(), |_, window, cx| {
         window.render_frame(cx);
         let from = window
-            .within(("remote-pane", SFTP_TAB))
+            .within(("remote-pane", other))
             .find("name:文件 甲.txt")
             .bounds()
             .center();
         let to = window
-            .within(("local-pane", other))
+            .within(("local-pane", SFTP_TAB))
             .find("file:目录")
             .bounds()
             .center();
@@ -786,7 +802,7 @@ async fn remote_rows_dropped_on_another_tabs_local_pane_come_from_their_own_tab(
     cx.run_until_parked();
     cx.update_window(handle.into(), |_, window, cx| {
         window.render_frame(cx);
-        // Into web-01's tab's local directory, where they were dropped.
+        // Into db-01's tab's local directory, where they were dropped.
         let target = window.find("download-target").value().map(str::to_string);
         assert!(target.is_some_and(|target| target.ends_with("目录")));
         // The fake local directories are Unix paths, which Windows does not
@@ -806,8 +822,8 @@ async fn remote_rows_dropped_on_another_tabs_local_pane_come_from_their_own_tab(
                 .try_find(("queue-entry", 1u64))
                 .is_some()
         };
-        assert!(queued(window, SFTP_TAB), "db-01's tab downloads them");
-        assert!(!queued(window, other));
+        assert!(queued(window, other), "web-01's tab downloads them");
+        assert!(!queued(window, SFTP_TAB));
     })
     .unwrap();
 }

@@ -676,8 +676,10 @@ impl Workspace {
                 self.focus_center(window, cx);
             }
         }
-        // 撰写 goes with the SSH terminals on screen too.
+        // 撰写 goes with the SSH terminals on screen too, one local list
+        // with the SFTP tabs.
         self.sync_compose(cx);
+        self.sync_local_lists(cx);
         // The switch comes and goes with the terminal, and marks the tool.
         cx.notify();
     }

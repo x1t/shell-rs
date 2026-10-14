@@ -9,6 +9,7 @@ mod compose_history;
 mod credentials;
 mod dock_skin;
 mod editors;
+mod follow_file_manager;
 mod forwards;
 mod front;
 mod links;

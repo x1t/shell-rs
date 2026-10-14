@@ -157,6 +157,13 @@ explorer.command.copy_to:
 explorer.copy.target_gone:
   zh-CN: 要复制到的 SFTP 标签已经关闭或断开了连接
   en: The SFTP tab to copy to is closed or not connected
+# The local list's toolbar, on Windows.
+explorer.command.follow_file_manager:
+  zh-CN: 跳到文件管理器的文件夹
+  en: Go to the file manager’s folder
+explorer.file_manager.none:
+  zh-CN: 没有找到显示着文件夹的 Directory Opus 或资源管理器窗口
+  en: No Directory Opus or File Explorer window shows a folder
 explorer.command.show_hidden_files:
   zh-CN: 显示隐藏文件
   en: Show hidden files

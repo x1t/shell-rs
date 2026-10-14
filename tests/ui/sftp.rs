@@ -2558,3 +2558,67 @@ async fn sftp_controls_fit_small_window_in_light_dark_and_zoom(cx: &mut TestAppC
         }
     }
 }
+
+/// 跟随文件管理器: coming back from Directory Opus or Explorer, the SFTP tab
+/// in front takes the folder it showed into its local list, unless the
+/// setting is off. The watch is a channel here, as `Workspace::new` hands
+/// in the system's.
+#[gpui_kit::test]
+async fn the_sftp_tab_in_front_follows_the_file_manager_back(cx: &mut TestAppContext) {
+    use shellrs::explorer::FollowFileManager;
+    let provider = Arc::new(FakeSftpProvider::default());
+    let (handle, workspace) = open_workspace_with_sftp(cx, provider);
+    open_test_explorer(cx, handle).await;
+    let local_path = |cx: &mut TestAppContext| {
+        cx.run_until_parked();
+        cx.update(|cx| {
+            let explorer = workspace.read(cx).explorer(ExplorerId(SFTP_TAB)).unwrap();
+            explorer.read(cx).local().read(cx).path()
+        })
+    };
+    let home = local_path(cx);
+    let folder = cx.update(|cx| {
+        let explorer = workspace.read(cx).explorer(ExplorerId(SFTP_TAB)).unwrap();
+        explorer.read(cx).local().read(cx).child_path_of("目录")
+    });
+    let (returns, watch) = async_channel::unbounded();
+    cx.update_window(handle.into(), |_, window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            workspace.follow_file_manager(watch, window, cx)
+        });
+    })
+    .unwrap();
+    let come_back = |cx: &mut TestAppContext, folder: &str| {
+        returns.try_send(folder.to_string()).unwrap();
+        cx.executor().advance_clock(Duration::from_millis(200));
+    };
+
+    cx.update(|cx| cx.set_global(FollowFileManager(false)));
+    come_back(cx, &folder);
+    assert_eq!(local_path(cx), home, "switched off, the list stays");
+
+    cx.update(|cx| cx.set_global(FollowFileManager(true)));
+    come_back(cx, &folder);
+    // The fake local folders mix separators on Windows.
+    let slashes = |path: String| path.replace('\\', "/");
+    assert_eq!(slashes(local_path(cx)), slashes(folder));
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.render_frame(cx);
+        // The button that goes there by hand is on the local side only,
+        // where there are Opus and Explorer to follow.
+        assert_eq!(
+            window
+                .within(("local-pane", SFTP_TAB))
+                .try_find("follow-file-manager")
+                .is_some(),
+            cfg!(windows)
+        );
+        assert!(
+            window
+                .within(("remote-pane", SFTP_TAB))
+                .try_find("follow-file-manager")
+                .is_none()
+        );
+    })
+    .unwrap();
+}

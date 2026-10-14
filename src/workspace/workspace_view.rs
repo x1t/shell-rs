@@ -317,6 +317,7 @@ impl Workspace {
         }
         let secrets = this.store.read(cx).secrets();
         this.set_sync_services(crate::sync::SyncServices::system(secrets), window, cx);
+        this.follow_file_manager(crate::explorer::file_manager_returns(), window, cx);
         this
     }
 

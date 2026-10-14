@@ -355,6 +355,27 @@ impl FoldersFirst {
     }
 }
 
+/// 跟随文件管理器: coming back from Directory Opus or Explorer, the SFTP tab
+/// in front takes the folder it showed into its local list. On until the
+/// user turns it off; only Windows has them to follow.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct FollowFileManager(pub bool);
+
+impl Default for FollowFileManager {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
+impl Global for FollowFileManager {}
+
+impl FollowFileManager {
+    pub fn get(cx: &App) -> bool {
+        cx.try_global::<Self>().copied().unwrap_or_default().0
+    }
+}
+
 impl FileSizeFormat {
     /// In the order the menu lists them.
     pub const ALL: [FileSizeFormat; 3] = [

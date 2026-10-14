@@ -619,6 +619,29 @@ fn sftp_groups(panel: &SettingsPanel, _: &App) -> Vec<SettingGroup> {
                 .keywords(keywords(t!("settings.sftp.keywords"))),
             ]),
     ]
+    .into_iter()
+    .chain(cfg!(windows).then(|| follow_file_manager_group(&panel.store)))
+    .collect()
+}
+
+/// SFTP → 文件管理器: only Windows has Directory Opus and Explorer to follow.
+fn follow_file_manager_group(store: &Entity<SettingsStore>) -> SettingGroup {
+    let (reader, writer) = (store.clone(), store.clone());
+    SettingGroup::new()
+        .title(t!("settings.sftp.file_manager"))
+        .items([SettingItem::new(
+            t!("settings.sftp.follow_file_manager"),
+            SettingField::switch(
+                move |cx| reader.read(cx).settings().follow_file_manager.0,
+                move |on, cx| {
+                    writer.update(cx, |store, cx| {
+                        store.update(|settings| settings.follow_file_manager.0 = on, cx)
+                    });
+                },
+            )
+            .default_value(true),
+        )
+        .description(t!("settings.sftp.follow_file_manager_description"))])
 }
 
 /// What the 关键字高亮 preview shows: a service's log followed on a server,

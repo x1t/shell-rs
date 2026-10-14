@@ -19,6 +19,7 @@ on:
       - "src/update/**"
       - "src/import/**"
       - "src/explorer/external_editor.rs"
+      - "src/explorer/file_manager.rs"
       - "src/app/paths.rs"
       - "src/app/window_hiding.rs"
       - "src/main.rs"

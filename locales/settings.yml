@@ -203,6 +203,15 @@ settings.sftp.preview_folder:
 settings.sftp.preview_file:
   zh-CN: 普通文件
   en: File
+settings.sftp.file_manager:
+  zh-CN: 文件管理器
+  en: File manager
+settings.sftp.follow_file_manager:
+  zh-CN: 跟随文件管理器
+  en: Follow the file manager
+settings.sftp.follow_file_manager_description:
+  zh-CN: 从 Directory Opus 或资源管理器切回 ShellRS 时，当前 SFTP 标签的本地列表跳到它正在显示的文件夹。
+  en: Coming back to ShellRS from Directory Opus or File Explorer, the local list of the SFTP tab in front goes to the folder it shows.
 settings.sftp.keywords:
   zh-CN: 图标,彩色,单色,文件,文件夹,预览
   en: icons,color,monochrome,files,folders,preview

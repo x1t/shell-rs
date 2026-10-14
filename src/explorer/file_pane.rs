@@ -1171,6 +1171,18 @@ impl Render for FilePane {
                 )
                 .disabled(!navigable || !state.can_go_home),
             )
+            // Windows only: elsewhere there is no Opus or Explorer.
+            .when(cfg!(windows) && !remote, |row| {
+                row.child(
+                    tool(
+                        "follow-file-manager",
+                        Icon::new(CatalogIcon::FolderInput),
+                        t!("explorer.command.follow_file_manager"),
+                        ExplorerCommand::FollowFileManager,
+                    )
+                    .disabled(!navigable),
+                )
+            })
             .child(
                 tool(
                     "refresh",

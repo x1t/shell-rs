@@ -7,6 +7,7 @@ use gpui_kit::component::dock::{DockPlacement, PaneRef, PanelId};
 use gpui_kit::*;
 
 use crate::app::CenterTab;
+use crate::explorer::ExplorerId;
 
 use super::Workspace;
 
@@ -32,6 +33,24 @@ impl Workspace {
             .into_iter()
             .filter_map(|panel| self.center_tab_for_panel(panel))
             .collect()
+    }
+
+    /// Side by side, SFTP tabs share one local list: the first one's on
+    /// screen (left or top); the others show only their servers. Local
+    /// files dropped on those go up through them all the same.
+    pub(super) fn sync_local_lists(&self, cx: &mut App) {
+        let shown: Vec<ExplorerId> = self
+            .visible_center_tabs(cx)
+            .into_iter()
+            .filter_map(|tab| match tab {
+                CenterTab::Explorer(id) => Some(id),
+                _ => None,
+            })
+            .collect();
+        for (id, panel) in &self.explorers {
+            let local = shown.first().is_none_or(|first| first == id) || !shown.contains(id);
+            panel.update(cx, |panel, cx| panel.set_local_shown(local, cx));
+        }
     }
 
     /// The focus went into `tab`: in a split, clicking into the other half

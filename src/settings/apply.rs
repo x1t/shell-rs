@@ -1,7 +1,9 @@
 use gpui_kit::component::{ActiveTheme as _, Theme, ThemeMode};
 use gpui_kit::*;
 
-use crate::explorer::{FileIconStyle, FileSizeFormat, FoldersFirst, ShowHiddenFiles};
+use crate::explorer::{
+    FileIconStyle, FileSizeFormat, FoldersFirst, FollowFileManager, ShowHiddenFiles,
+};
 use crate::i18n::UiLocale;
 use crate::terminal::{
     TerminalColors, TerminalFont, TerminalHighlights, TerminalInteraction, is_font_installed,
@@ -108,5 +110,8 @@ pub fn apply(settings: AppSettings, window: &mut Window, cx: &mut App) {
     }
     if cx.try_global::<FoldersFirst>() != Some(&settings.folders_first) {
         cx.set_global(settings.folders_first);
+    }
+    if cx.try_global::<FollowFileManager>() != Some(&settings.follow_file_manager) {
+        cx.set_global(settings.follow_file_manager);
     }
 }

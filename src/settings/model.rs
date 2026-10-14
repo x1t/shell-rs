@@ -3,7 +3,9 @@ use gpui_kit::{SharedString, WindowAppearance};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::app::ShortcutOverrides;
-use crate::explorer::{FileIconStyle, FileSizeFormat, FoldersFirst, ShowHiddenFiles};
+use crate::explorer::{
+    FileIconStyle, FileSizeFormat, FoldersFirst, FollowFileManager, ShowHiddenFiles,
+};
 use crate::i18n::t;
 use crate::terminal::{
     DEFAULT_FONT_SIZE, DEFAULT_LINE_HEIGHT, FONT_SIZE_RANGE, HighlightRule, LINE_HEIGHT_RANGE,
@@ -41,6 +43,8 @@ pub struct AppSettings {
     pub folders_first: FoldersFirst,
     /// SFTP → 图标风格.
     pub file_icon_style: FileIconStyle,
+    /// SFTP → 跟随文件管理器.
+    pub follow_file_manager: FollowFileManager,
     /// 撰写 under the center area.
     pub compose: ComposeSettings,
     /// 终端 → 通知.
@@ -547,6 +551,10 @@ mod tests {
         assert!(settings.show_hidden.remote);
         assert!(!settings.show_hidden.local);
         // Folders come first unless the file says otherwise.
+        assert!(AppSettings::default().follow_file_manager.0);
+        let settings: AppSettings =
+            serde_json::from_str(r#"{"follow_file_manager":false}"#).unwrap();
+        assert!(!settings.follow_file_manager.0);
         assert!(AppSettings::default().folders_first.local);
         assert!(AppSettings::default().folders_first.remote);
         let settings: AppSettings =
