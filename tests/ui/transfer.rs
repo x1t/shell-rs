@@ -629,3 +629,185 @@ async fn sftp_a_file_drag_shows_its_preview_only_over_the_other_pane(cx: &mut Te
     })
     .unwrap();
 }
+
+/// 复制到 another SFTP tab: the files come down from this tab's server to
+/// a folder on this computer, then go up from it through the other tab into
+/// the directory asked for; once that is done, the folder goes.
+#[gpui_kit::test]
+async fn files_copied_to_another_sftp_tab_go_through_this_computer(cx: &mut TestAppContext) {
+    use shellrs::app::{ExplorerAction, ExplorerCommand, OpenExplorer};
+    use shellrs::sftp::{TransferPhase, TransferProgress};
+    let provider = Arc::new(FakeSftpProvider::default());
+    let (handle, workspace) = open_workspace_with_sftp(cx, provider.clone());
+    open_test_explorer(cx, handle).await;
+    // web-01's, the second SFTP tab.
+    let other = ExplorerId(SFTP_TAB + 1);
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.dispatch_action(Box::new(OpenExplorer(HostId(WEB_01))), cx);
+    })
+    .unwrap();
+    cx.wait_for(handle.into(), Duration::from_secs(2), |_, cx| {
+        workspace
+            .read(cx)
+            .explorer(other)
+            .is_some_and(|panel| panel.read(cx).connection_state() == ConnectionState::Connected)
+    })
+    .await;
+    // Each tab's connection, in the order they were made.
+    let finish = |connection: usize| {
+        let events = provider.events.lock().unwrap()[connection].clone();
+        events
+            .send_blocking(SftpEvent::Progress(TransferProgress::new(
+                TransferPhase::Completed,
+            )))
+            .unwrap();
+        events.send_blocking(SftpEvent::Idle).unwrap();
+    };
+
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.dispatch_action(
+            Box::new(ExplorerAction::new(
+                ExplorerId(SFTP_TAB),
+                ExplorerCommand::CopyToTab {
+                    to: other,
+                    paths: vec!["/home/tester/notes.txt".into()],
+                    target: Some("/srv".into()),
+                },
+            )),
+            cx,
+        );
+    })
+    .unwrap();
+    cx.run_until_parked();
+    // Down from db-01, into a folder of its own.
+    let folder = {
+        let downloads = provider.downloads.lock().unwrap();
+        assert_eq!(downloads.len(), 1);
+        assert_eq!(downloads[0].sources()[0].as_str(), "/home/tester/notes.txt");
+        downloads[0].destination().to_path_buf()
+    };
+    assert!(folder.is_dir(), "{folder:?}");
+    assert!(provider.requests.lock().unwrap().is_empty());
+
+    // What the download wrote, then its end: up through web-01.
+    std::fs::write(folder.join("notes.txt"), b"notes").unwrap();
+    finish(0);
+    cx.wait_for(handle.into(), Duration::from_secs(2), |_, _| {
+        !provider.requests.lock().unwrap().is_empty()
+    })
+    .await;
+    {
+        let uploads = provider.requests.lock().unwrap();
+        assert_eq!(uploads[0].sources(), [folder.join("notes.txt")]);
+        assert_eq!(uploads[0].destination().as_str(), "/srv");
+    }
+
+    // The upload's end takes the folder away.
+    finish(1);
+    cx.wait_for(handle.into(), Duration::from_secs(2), |_, _| {
+        !folder.exists()
+    })
+    .await;
+}
+
+/// Remote rows dropped on another SFTP tab's local pane are downloaded by
+/// the tab they are from: the other one's server has nothing at their
+/// paths.
+#[gpui_kit::test]
+async fn remote_rows_dropped_on_another_tabs_local_pane_come_from_their_own_tab(
+    cx: &mut TestAppContext,
+) {
+    use gpui_kit::component::{
+        Placement,
+        dock::{DockPlacement, InsertTarget, PanelId},
+    };
+    use shellrs::app::OpenExplorer;
+    let provider = Arc::new(FakeSftpProvider::default());
+    let (handle, workspace) = open_workspace_with_sftp(cx, provider);
+    open_test_explorer(cx, handle).await;
+    let other = SFTP_TAB + 1;
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.dispatch_action(Box::new(OpenExplorer(HostId(WEB_01))), cx);
+    })
+    .unwrap();
+    cx.wait_for(handle.into(), Duration::from_secs(2), |_, cx| {
+        workspace
+            .read(cx)
+            .explorer(ExplorerId(other))
+            .is_some_and(|panel| panel.read(cx).connection_state() == ConnectionState::Connected)
+    })
+    .await;
+    // web-01's tab to a group of its own on the right, beside db-01's.
+    cx.update_window(handle.into(), |_, window, cx| {
+        let panel = PanelId::from(
+            workspace
+                .read(cx)
+                .explorer(ExplorerId(other))
+                .expect("web-01's SFTP tab")
+                .entity_id(),
+        );
+        let area = workspace.read(cx).dock_area().clone();
+        area.update(cx, |area, cx| {
+            let node = area
+                .layout(DockPlacement::Center)
+                .and_then(|tree| tree.find_panel_node(panel))
+                .expect("in the center");
+            area.move_panel(
+                panel,
+                InsertTarget::Split {
+                    node,
+                    placement: Placement::Right,
+                    size: None,
+                },
+                window,
+                cx,
+            );
+        });
+    })
+    .unwrap();
+    cx.run_until_parked();
+
+    // By its name, from db-01's remote pane to web-01's local one.
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.render_frame(cx);
+        let from = window
+            .within(("remote-pane", SFTP_TAB))
+            .find("name:文件 甲.txt")
+            .bounds()
+            .center();
+        let to = window
+            .within(("local-pane", other))
+            .find("file:目录")
+            .bounds()
+            .center();
+        window.drag(from, to, cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.render_frame(cx);
+        // Into web-01's tab's local directory, where they were dropped.
+        let target = window.find("download-target").value().map(str::to_string);
+        assert!(target.is_some_and(|target| target.ends_with("目录")));
+        // The fake local directories are Unix paths, which Windows does not
+        // take for absolute: a real one to confirm with.
+        window.click("download-target", cx);
+        window.press("secondary-a", cx);
+        window.input(&std::env::temp_dir().display().to_string(), cx);
+        window.click("download-confirm", cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.render_frame(cx);
+        let queued = |window: &mut gpui_kit::Window, tab: u64| {
+            window
+                .within(("explorer", tab))
+                .try_find(("queue-entry", 1u64))
+                .is_some()
+        };
+        assert!(queued(window, SFTP_TAB), "db-01's tab downloads them");
+        assert!(!queued(window, other));
+    })
+    .unwrap();
+}

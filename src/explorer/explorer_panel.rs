@@ -1,6 +1,6 @@
 use super::{
-    ExplorerId, FileLocation, FilePane, FilePaneEvent, LoadIntent, PaneSide, QueueId, QueueState,
-    Removal, TransferJob, TransferQueue,
+    ExplorerId, FileLocation, FilePane, FilePaneEvent, LoadIntent, PaneSide, QueueEntry, QueueId,
+    QueueState, Removal, TransferJob, TransferQueue,
     external_edit::ExternalCopies,
     file_edit::{Opening, PendingFile},
     pane_operations::PendingOperation,
@@ -51,6 +51,9 @@ pub enum ExplorerPanelEvent {
     PromptRequested(ExplorerId, HostId, u64, ConnectionPrompt),
     /// A file was read for the editor and can be edited.
     EditFile(ExplorerId, FileLocation, Rc<TextFile>),
+    /// The batch went through to the end, whether or not every item made
+    /// it: what is there can be carried on.
+    TransferFinished(ExplorerId, QueueId),
 }
 pub struct ExplorerPanel {
     id: ExplorerId,
@@ -395,17 +398,25 @@ impl ExplorerPanel {
         }
     }
     /// Put a confirmed batch on the queue, and start it if nothing runs.
-    fn enqueue(&mut self, job: TransferJob, window: &mut Window, cx: &mut Context<Self>) {
+    /// `None` when it is refused, which says why, or the tab is not
+    /// connected.
+    pub fn enqueue(
+        &mut self,
+        job: TransferJob,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<QueueId> {
         if self.state != ConnectionState::Connected {
-            return;
+            return None;
         }
         // Refused now rather than when its turn comes.
         if let Err(error) = transfer_command(&job) {
             window.push_notification(Notification::error(error.to_string()), cx);
-            return;
+            return None;
         }
-        self.queue.push(job);
+        let id = self.queue.push(job);
         self.start_next_if_idle(window, cx);
+        Some(id)
     }
     pub fn send(&self, command: SftpCommand) {
         let _ = self.commands.try_send(command);
@@ -501,7 +512,11 @@ impl ExplorerPanel {
             SftpEvent::Progress(progress) => {
                 let complete = progress.phase() == TransferPhase::Completed;
                 let direction = progress.direction();
+                let batch = self.queue.head().map(QueueEntry::id);
                 self.queue.on_progress(progress);
+                if let Some(batch) = batch.filter(|_| complete) {
+                    cx.emit(ExplorerPanelEvent::TransferFinished(self.id, batch));
+                }
                 // A question outlives nothing: once the batch stops or ends,
                 // one on screen goes, and one not shown yet never will be.
                 let running = self
@@ -768,7 +783,11 @@ impl ExplorerPanel {
             ExplorerCommand::DownloadPaths { paths, target } => {
                 self.open_download(paths.clone(), target.clone(), window, cx)
             }
-            ExplorerCommand::Enqueue(job) => self.enqueue(job.clone(), window, cx),
+            ExplorerCommand::Enqueue(job) => {
+                self.enqueue(job.clone(), window, cx);
+            }
+            // The workspace's, which holds the other tab.
+            ExplorerCommand::CopyToTab { .. } => {}
             ExplorerCommand::Delete { remote } => self.confirm_delete(*remote, window, cx),
             ExplorerCommand::Rename { remote } => self.open_rename(*remote, window, cx),
             ExplorerCommand::New { remote, kind } => self.open_new(*remote, *kind, window, cx),
@@ -1011,7 +1030,8 @@ fn needs_connection(command: &ExplorerCommand) -> bool {
         | C::DownloadPaths { .. }
         | C::ChooseFiles
         | C::UploadPaths { .. }
-        | C::Enqueue(_) => true,
+        | C::Enqueue(_)
+        | C::CopyToTab { .. } => true,
         _ => false,
     }
 }

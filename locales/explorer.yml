@@ -149,6 +149,14 @@ explorer.command.back:
 explorer.command.forward:
   zh-CN: 前进
   en: Forward
+# One item a tab, in a remote row's menu: 「复制到 db-01」.
+explorer.command.copy_to:
+  zh-CN: 复制到 %{tab}
+  en: Copy to %{tab}
+# Copying to another SFTP tab's server, when it went away first.
+explorer.copy.target_gone:
+  zh-CN: 要复制到的 SFTP 标签已经关闭或断开了连接
+  en: The SFTP tab to copy to is closed or not connected
 explorer.command.show_hidden_files:
   zh-CN: 显示隐藏文件
   en: Show hidden files

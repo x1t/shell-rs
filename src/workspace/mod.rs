@@ -14,6 +14,7 @@ mod front;
 mod links;
 mod notices;
 mod recent_hosts;
+mod relay;
 mod sidebar;
 mod snippets;
 mod status_bar;

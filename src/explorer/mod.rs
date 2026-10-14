@@ -32,6 +32,7 @@ pub use file_listing::FileListing;
 pub use file_pane::{FilePane, FilePaneEvent, PaneSide};
 pub use history::{LoadIntent, NavigationHistory};
 pub use model::*;
+pub use pane_menu::CopyTargets;
 pub use pane_operations::PaneOperation;
 pub use preview::{IMAGE_LIMIT, PreviewKind};
 pub use selection::{ClickMode, CursorMotion, Selection};

@@ -2,7 +2,11 @@
 //! and the toolbar's bookmark and 新建 menus. Each item dispatches the same
 //! `ExplorerCommand` as the toolbar button with that verb.
 
-use super::{ExplorerId, ExternalEditor, FileSizeFormat, NewEntryKind, PaneSide, PreviewKind};
+use std::rc::Rc;
+
+use super::{
+    ExplorerId, ExternalEditor, FileSizeFormat, NewEntryKind, PaneSide, PreviewKind, child_path,
+};
 use crate::app::{
     CatalogIcon, ExplorerAction, ExplorerCommand, SetFileSizeFormat, ToggleFoldersFirst,
     ToggleHiddenFiles,
@@ -10,6 +14,27 @@ use crate::app::{
 use crate::i18n::t;
 use gpui_kit::component::{Icon, IconName, menu::PopupMenu};
 use gpui_kit::*;
+
+/// The other SFTP tabs a remote selection can be copied to, as the
+/// workspace, which holds them all, tells: connected ones, named as their
+/// tabs are, without the one asking. Read when a menu opens.
+#[derive(Clone)]
+pub struct CopyTargets(pub ListCopyTargets);
+
+/// A tab to copy to, and its name.
+pub type CopyTarget = (ExplorerId, SharedString);
+/// The tabs `ExplorerId` can copy to.
+pub type ListCopyTargets = Rc<dyn Fn(ExplorerId, &App) -> Vec<CopyTarget>>;
+
+impl Global for CopyTargets {}
+
+impl CopyTargets {
+    pub(super) fn of(explorer: ExplorerId, cx: &App) -> Vec<CopyTarget> {
+        cx.try_global::<Self>()
+            .map(|targets| (targets.0)(explorer, cx))
+            .unwrap_or_default()
+    }
+}
 
 /// What the menus need to know about a pane, read when a menu opens.
 #[derive(Clone, Debug)]
@@ -39,6 +64,8 @@ pub(super) struct PaneMenuState {
     pub show_hidden: bool,
     /// 文件夹排在前面 is on for this side.
     pub folders_first: bool,
+    /// The other tabs a remote selection can be copied to.
+    pub copy_targets: Vec<CopyTarget>,
 }
 
 impl PaneMenuState {
@@ -101,13 +128,35 @@ pub(super) fn item_menu(menu: PopupMenu, state: &PaneMenuState) -> PopupMenu {
     } else {
         (t!("explorer.command.upload"), CatalogIcon::Upload)
     };
-    menu.menu_with_icon_and_disabled(
+    let menu = menu.menu_with_icon_and_disabled(
         verb,
         Icon::new(icon),
         state.action(ExplorerCommand::Transfer { remote }),
         state.targets.is_empty() || !state.can_transfer,
-    )
-    .menu_with_icon_and_disabled(
+    );
+    // To another server, through this computer: one item a tab.
+    let paths: Vec<String> = state
+        .targets
+        .iter()
+        .map(|name| child_path(&state.path, name, true))
+        .collect();
+    let menu = state
+        .copy_targets
+        .iter()
+        .filter(|_| remote)
+        .fold(menu, |menu, (to, tab)| {
+            menu.menu_with_icon_and_disabled(
+                t!("explorer.command.copy_to", tab = tab),
+                Icon::new(CatalogIcon::ArrowLeftRight),
+                state.action(ExplorerCommand::CopyToTab {
+                    to: *to,
+                    paths: paths.clone(),
+                    target: None,
+                }),
+                state.targets.is_empty() || !state.can_transfer,
+            )
+        });
+    menu.menu_with_icon_and_disabled(
         t!("explorer.command.copy_path"),
         Icon::new(IconName::Copy),
         state.action(ExplorerCommand::CopySelectedPaths { remote }),

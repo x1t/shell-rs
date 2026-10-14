@@ -296,14 +296,17 @@ impl FileListing {
             None => cell,
         };
         let paths = names.iter().map(|name| self.child_path(name));
+        let from = self.context.explorer;
         match self.side {
             PaneSide::Local => drag_files(
                 cell,
+                from,
                 paths.map(PathBuf::from).collect(),
                 TransferDirection::Upload,
             ),
             PaneSide::Remote => drag_files(
                 cell,
+                from,
                 paths.collect::<Vec<String>>(),
                 TransferDirection::Download,
             ),
@@ -675,9 +678,11 @@ fn name_column(width: Pixels) -> Column {
         .sortable()
 }
 
-/// Rows dragged toward the other pane, as paths on their own side.
+/// Rows dragged toward the other pane, as paths on their own side, or to
+/// another SFTP tab's: `from` is the tab whose pane they are in.
 #[derive(Clone)]
 pub(super) struct FilesDrag<P> {
+    pub from: ExplorerId,
     pub paths: Vec<P>,
     pub spot: DropSpot,
 }
@@ -688,10 +693,12 @@ pub(super) type RemoteFilesDrag = FilesDrag<String>;
 /// there moves in `direction`.
 fn drag_files<P: 'static>(
     cell: Stateful<Div>,
+    from: ExplorerId,
     paths: Vec<P>,
     direction: TransferDirection,
 ) -> Stateful<Div> {
     let drag = FilesDrag {
+        from,
         paths,
         spot: DropSpot::default(),
     };
@@ -704,23 +711,34 @@ fn drag_files<P: 'static>(
     })
 }
 
-/// Show that the other pane's rows can be dropped on `element`, and tell
-/// their drag so while the pointer is over it.
-pub(super) fn offer_drop<P: 'static>(element: Stateful<Div>) -> Stateful<Div> {
+/// Show that rows `takes` can be dropped on `element`, and tell their drag
+/// so while the pointer is over it.
+pub(super) fn offer_drop<P: 'static>(
+    element: Stateful<Div>,
+    takes: impl Fn(&FilesDrag<P>) -> bool + Clone + 'static,
+) -> Stateful<Div> {
+    let shows = takes.clone();
     element
-        .drag_over::<FilesDrag<P>>(|style, _, _, cx| style.bg(cx.theme().muted))
-        .on_drag_move(|event: &DragMoveEvent<FilesDrag<P>>, _, cx| {
-            event
-                .drag(cx)
-                .spot
-                .offer(event.event.position, event.bounds)
+        .drag_over::<FilesDrag<P>>(move |style, drag, _, cx| {
+            if shows(drag) {
+                style.bg(cx.theme().muted)
+            } else {
+                style
+            }
+        })
+        .on_drag_move(move |event: &DragMoveEvent<FilesDrag<P>>, _, cx| {
+            let drag = event.drag(cx);
+            if takes(drag) {
+                drag.spot.offer(event.event.position, event.bounds)
+            }
         })
 }
 
 /// Let `element` take what is dropped on it for the directory `target` on
-/// `side`: files from outside the app and the local pane's rows are uploaded
-/// to a remote directory, the remote pane's rows downloaded to a local one.
-/// A drop does nothing while transfers are not `enabled`.
+/// `side` of the tab `explorer`: files from outside the app and local rows
+/// are uploaded to a remote directory, remote rows downloaded to a local
+/// one by the tab they are from, and another tab's remote rows copied over
+/// from its server. A drop does nothing while transfers are not `enabled`.
 pub(super) fn accept_drops(
     element: Stateful<Div>,
     side: PaneSide,
@@ -729,28 +747,59 @@ pub(super) fn accept_drops(
     explorer: ExplorerId,
     target: String,
 ) -> Stateful<Div> {
-    let send = move |command: ExplorerCommand, window: &mut Window, cx: &mut App| {
-        if enabled {
-            dispatch.dispatch_explorer_action(&ExplorerAction::new(explorer, command), window, cx);
-            cx.stop_propagation();
-        }
-    };
+    let send =
+        move |to: ExplorerId, command: ExplorerCommand, window: &mut Window, cx: &mut App| {
+            if enabled {
+                dispatch.dispatch_explorer_action(&ExplorerAction::new(to, command), window, cx);
+                cx.stop_propagation();
+            }
+        };
     match side {
         PaneSide::Remote => element
             .on_drop({
                 let (send, target) = (send.clone(), target.clone());
                 move |paths: &ExternalPaths, window, cx| {
                     let (paths, target) = (paths.paths().to_vec(), target.clone());
-                    send(ExplorerCommand::UploadPaths { paths, target }, window, cx)
+                    send(
+                        explorer,
+                        ExplorerCommand::UploadPaths { paths, target },
+                        window,
+                        cx,
+                    )
                 }
             })
-            .on_drop(move |drag: &LocalFilesDrag, window, cx| {
-                let (paths, target) = (drag.paths.clone(), target.clone());
-                send(ExplorerCommand::UploadPaths { paths, target }, window, cx)
+            .on_drop({
+                let (send, target) = (send.clone(), target.clone());
+                move |drag: &LocalFilesDrag, window, cx| {
+                    let (paths, target) = (drag.paths.clone(), target.clone());
+                    send(
+                        explorer,
+                        ExplorerCommand::UploadPaths { paths, target },
+                        window,
+                        cx,
+                    )
+                }
+            })
+            .on_drop(move |drag: &RemoteFilesDrag, window, cx| {
+                if drag.from != explorer {
+                    let command = ExplorerCommand::CopyToTab {
+                        to: explorer,
+                        paths: drag.paths.clone(),
+                        target: Some(target.clone()),
+                    };
+                    send(drag.from, command, window, cx)
+                }
             }),
+        // The tab the rows are from downloads them: another tab's paths
+        // name nothing on this one's server.
         PaneSide::Local => element.on_drop(move |drag: &RemoteFilesDrag, window, cx| {
             let (paths, target) = (drag.paths.clone(), target.clone());
-            send(ExplorerCommand::DownloadPaths { paths, target }, window, cx)
+            send(
+                drag.from,
+                ExplorerCommand::DownloadPaths { paths, target },
+                window,
+                cx,
+            )
         }),
     }
 }

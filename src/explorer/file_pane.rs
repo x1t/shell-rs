@@ -6,7 +6,8 @@ use super::{
         ListGeometry, ListPlaceholder, ListingContext, MenuHit, Pressed, accept_drops, offer_drop,
     },
     pane_menu::{
-        PaneMenuState, bookmark_menu, directory_menu, item_menu, new_menu, size_format_menu,
+        CopyTargets, PaneMenuState, bookmark_menu, directory_menu, item_menu, new_menu,
+        size_format_menu,
     },
     path_ancestors,
     selection::{row_at, swept_rows},
@@ -1042,6 +1043,11 @@ impl FilePane {
             can_transfer: self.transfer_enabled,
             show_hidden: ShowHiddenFiles::get(self.side, cx),
             folders_first: FoldersFirst::get(self.side, cx),
+            copy_targets: if self.is_remote() {
+                CopyTargets::of(self.explorer, cx)
+            } else {
+                Vec::new()
+            },
         }
     }
 }
@@ -1434,9 +1440,11 @@ impl Render for FilePane {
                     })
                     .when(self.transfer_enabled, |this| {
                         if remote {
-                            offer_drop::<PathBuf>(this)
+                            // Local rows, and another tab's remote ones.
+                            let this = offer_drop::<PathBuf>(this, |_| true);
+                            offer_drop::<String>(this, move |drag| drag.from != sid)
                         } else {
-                            offer_drop::<String>(this)
+                            offer_drop::<String>(this, |_| true)
                         }
                     })
                     .map(|this| {

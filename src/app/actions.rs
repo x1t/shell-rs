@@ -560,6 +560,15 @@ pub enum ExplorerCommand {
     },
     /// Put a confirmed upload or download on the transfer queue.
     Enqueue(crate::explorer::TransferJob),
+    /// Copy these remote paths to the server of the SFTP tab `to`, into
+    /// `target` there, or the directory it shows when `None`: through a
+    /// folder on this computer, since one server seldom reaches the other.
+    /// Taken by the workspace, which holds both tabs.
+    CopyToTab {
+        to: ExplorerId,
+        paths: Vec<String>,
+        target: Option<String>,
+    },
     /// Ask to delete the pane's selection.
     Delete {
         remote: bool,

@@ -46,7 +46,8 @@ use crate::connection::{
 use crate::credential::CredentialPanel;
 use crate::editor::{EditorId, EditorPanel};
 use crate::explorer::{
-    ExplorerId, ExplorerPanel, ExplorerPanelEvent, PreviewKind, confirm_close_transfer,
+    CopyTargets, ExplorerId, ExplorerPanel, ExplorerPanelEvent, PreviewKind, QueueId,
+    confirm_close_transfer,
 };
 use crate::forward::{
     ForwardManager, ForwardManagerEvent, ForwardPanel, SharedForwardTransportProvider,
@@ -81,6 +82,7 @@ use super::{
     compose::ComposeBar,
     dock_skin::WorkspaceDockSkin,
     recent_hosts::RecentHosts,
+    relay,
     sidebar::Sidebar,
     status_bar::WorkspaceStatus,
     title_bar::render_title_bar,
@@ -212,6 +214,10 @@ pub struct Workspace {
     /// Whether the right sidebar is to show while an SSH terminal is in
     /// front. It hides with any other tab and comes back with the next one.
     pub(super) tool_sidebar_wanted: bool,
+    /// Copies between two SFTP tabs, by the batch each waits on.
+    pub(super) relays: HashMap<(ExplorerId, QueueId), relay::Relay>,
+    /// Numbers the copies' folders on this computer.
+    pub(super) next_relay: u64,
     pub(super) prompt_queue: VecDeque<(PromptOwner, HostId, ConnectionPrompt)>,
     pub(super) active_prompt: Option<(PromptOwner, HostId, u64)>,
     /// Dispatch target for the title bar and start page: actions sent to it
@@ -553,6 +559,25 @@ impl Workspace {
         // Settled before the first `LayoutChanged` arrives, so the handler
         // does not take the initial state for a tab having just closed.
         skin.set_center_empty(terminals.is_empty(), cx);
+        // 复制到 in a remote row's menu: the other connected SFTP tabs.
+        cx.set_global(CopyTargets(Rc::new({
+            let workspace = cx.weak_entity();
+            move |asking, cx| {
+                let Some(workspace) = workspace.upgrade() else {
+                    return Vec::new();
+                };
+                let workspace = workspace.read(cx);
+                workspace
+                    .explorers
+                    .iter()
+                    .filter(|(id, _)| **id != asking)
+                    .filter(|(_, panel)| {
+                        panel.read(cx).connection_state() == ConnectionState::Connected
+                    })
+                    .map(|(id, panel)| (*id, panel.read(cx).tab_title(cx)))
+                    .collect()
+            }
+        })));
         skin.set_tab_labels({
             let workspace = cx.weak_entity();
             Rc::new(move |panel, cx| {
@@ -602,6 +627,8 @@ impl Workspace {
             tool_terminal_choice: None,
             // 命令片段 opens with the first SSH terminal.
             tool_sidebar_wanted: true,
+            relays: HashMap::new(),
+            next_relay: 0,
             prompt_queue: VecDeque::new(),
             active_prompt: None,
             focus_handle,
@@ -1594,7 +1621,10 @@ impl Workspace {
             }
             _ => {}
         }
-        if matches!(action.command(), ExplorerCommand::CloseConfirmed) {
+        if let ExplorerCommand::CopyToTab { to, paths, target } = action.command() {
+            let (paths, target) = (paths.clone(), target.clone());
+            self.copy_to_tab(action.explorer(), *to, paths, target, window, cx);
+        } else if matches!(action.command(), ExplorerCommand::CloseConfirmed) {
             self.remove_explorer(action.explorer(), window, cx);
         } else {
             panel.update(cx, |panel, cx| panel.execute(action.command(), window, cx));
@@ -2516,6 +2546,7 @@ fn new_explorer_panel(
                 for editor in this.editors_of(*id, cx) {
                     this.remove_editor(editor, window, cx);
                 }
+                this.end_relays_of(*id, cx);
                 this.explorers.remove(id);
                 if this.active_tab == Some(CenterTab::Explorer(*id)) {
                     this.set_active_tab(None, window, cx);
@@ -2539,6 +2570,9 @@ fn new_explorer_panel(
                 }
                 this.refresh_host_connection_state(*host_id, cx);
             },
+            ExplorerPanelEvent::TransferFinished(id, batch) => {
+                this.on_transfer_finished(*id, *batch, window, cx)
+            }
             ExplorerPanelEvent::StatusChanged(id) => {
                 if this.active_tab == Some(CenterTab::Explorer(*id)) {
                     cx.notify();
