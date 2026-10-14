@@ -131,6 +131,7 @@ pub struct FileListing {
     /// are not shown.
     rows: Vec<FileEntry>,
     show_hidden: bool,
+    folders_first: bool,
     sort: Option<(usize, ColumnSort)>,
     side: PaneSide,
     context: ListingContext,
@@ -181,6 +182,7 @@ impl FileListing {
             listed: Vec::new(),
             rows: Vec::new(),
             show_hidden: false,
+            folders_first: true,
             sort: None,
             side,
             context: ListingContext::default(),
@@ -374,6 +376,17 @@ impl FileListing {
         }
     }
 
+    pub fn keeps_folders_first(&self) -> bool {
+        self.folders_first
+    }
+
+    pub fn set_folders_first(&mut self, first: bool) {
+        if self.folders_first != first {
+            self.folders_first = first;
+            self.apply_sort();
+        }
+    }
+
     fn filter(&mut self) {
         let show_hidden = self.show_hidden;
         self.rows = self
@@ -385,8 +398,9 @@ impl FileListing {
         self.apply_sort();
     }
 
-    /// Sort by the active column, by name without one. `..` stays first and
-    /// directories (links to directories included) stay ahead of files.
+    /// Sort by the active column, by name without one. `..` stays first and,
+    /// with `folders_first`, directories (links to directories included)
+    /// stay ahead of files.
     fn apply_sort(&mut self) {
         let (key, descending) = self
             .sort
@@ -396,6 +410,7 @@ impl FileListing {
                     .map(|column| (column.key.clone(), sort == ColumnSort::Descending))
             })
             .unwrap_or_else(|| ("name".into(), false));
+        let folders_first = self.folders_first;
         let start = usize::from(self.rows.first().is_some_and(FileEntry::is_parent));
         self.rows[start..].sort_by(|a, b| {
             let by_name = || a.name.to_lowercase().cmp(&b.name.to_lowercase());
@@ -412,7 +427,11 @@ impl FileListing {
             }
             .then_with(by_name);
             let by_key = if descending { by_key.reverse() } else { by_key };
-            b.is_dir().cmp(&a.is_dir()).then(by_key)
+            if folders_first {
+                b.is_dir().cmp(&a.is_dir()).then(by_key)
+            } else {
+                by_key
+            }
         });
     }
 }

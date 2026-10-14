@@ -310,6 +310,51 @@ impl ShowHiddenFiles {
     }
 }
 
+/// 文件夹排在前面: whether the lists keep folders ahead of files, whatever
+/// the column they are sorted by, for each side on its own like
+/// `ShowHiddenFiles`. On until the user turns it off.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FoldersFirst {
+    pub local: bool,
+    pub remote: bool,
+}
+
+impl Default for FoldersFirst {
+    fn default() -> Self {
+        Self {
+            local: true,
+            remote: true,
+        }
+    }
+}
+
+impl Global for FoldersFirst {}
+
+impl FoldersFirst {
+    /// Whether `side` keeps them first now.
+    pub fn get(side: PaneSide, cx: &App) -> bool {
+        cx.try_global::<Self>()
+            .copied()
+            .unwrap_or_default()
+            .on(side)
+    }
+
+    pub fn on(self, side: PaneSide) -> bool {
+        match side {
+            PaneSide::Local => self.local,
+            PaneSide::Remote => self.remote,
+        }
+    }
+
+    pub fn toggle(&mut self, side: PaneSide) {
+        match side {
+            PaneSide::Local => self.local = !self.local,
+            PaneSide::Remote => self.remote = !self.remote,
+        }
+    }
+}
+
 impl FileSizeFormat {
     /// In the order the menu lists them.
     pub const ALL: [FileSizeFormat; 3] = [

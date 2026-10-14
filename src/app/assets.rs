@@ -72,6 +72,8 @@ icon_assets!(
         Save,
         Eye,
         EyeOff,
+        Folders,
+        Files,
         ZoomIn,
         ZoomOut,
         Zap,

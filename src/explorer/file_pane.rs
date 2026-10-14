@@ -1,6 +1,7 @@
 use super::{
     ClickMode, CursorMotion, ExplorerId, ExternalEditors, FileEntry, FileListing, FileSizeFormat,
-    LoadIntent, NavigationHistory, PreviewKind, Selection, ShowHiddenFiles, child_path,
+    FoldersFirst, LoadIntent, NavigationHistory, PreviewKind, Selection, ShowHiddenFiles,
+    child_path,
     file_listing::{
         ListGeometry, ListPlaceholder, ListingContext, MenuHit, Pressed, accept_drops, offer_drop,
     },
@@ -14,7 +15,7 @@ use crate::app::ExplorerDispatch as _;
 use crate::{
     app::{
         CatalogIcon, ExplorerAction, ExplorerCommand, ExplorerShortcut, LOCAL_FILE_LIST_CONTEXT,
-        REMOTE_FILE_LIST_CONTEXT, ToggleHiddenFiles,
+        REMOTE_FILE_LIST_CONTEXT, ToggleFoldersFirst, ToggleHiddenFiles,
     },
     host::{BookmarkSide, ConnectionState, HostId, HostStore},
     i18n::{UiLocale, t, tn},
@@ -244,6 +245,7 @@ impl FilePane {
     ) -> Self {
         let mut listing = FileListing::new(side);
         listing.set_show_hidden(ShowHiddenFiles::get(side, cx));
+        listing.set_folders_first(FoldersFirst::get(side, cx));
         // The pane owns selection (multi-select by name); the table's single
         // row selection stays off so it never paints a competing highlight.
         let table = cx.new(|cx| {
@@ -279,6 +281,7 @@ impl FilePane {
             }),
             cx.observe(&store, |_, _, cx| cx.notify()),
             cx.observe_global::<ShowHiddenFiles>(|pane, cx| pane.sync_hidden_files(cx)),
+            cx.observe_global::<FoldersFirst>(|pane, cx| pane.sync_folders_first(cx)),
             // The column titles and the select's groups are kept by
             // gpui-kit, so they are given again in the new language.
             cx.observe_global_in::<UiLocale>(window, |pane, window, cx| {
@@ -407,6 +410,19 @@ impl FilePane {
             table.refresh(cx);
         });
         self.update_selection(cx, |selection, order| selection.retain(order));
+    }
+
+    /// Sort the rows again when this side's folders go first or no longer
+    /// do.
+    fn sync_folders_first(&mut self, cx: &mut Context<Self>) {
+        let first = FoldersFirst::get(self.side, cx);
+        if self.table.read(cx).delegate().keeps_folders_first() == first {
+            return;
+        }
+        self.table.update(cx, |table, cx| {
+            table.delegate_mut().set_folders_first(first);
+            table.refresh(cx);
+        });
     }
     pub fn column_names(&self, cx: &App) -> Vec<SharedString> {
         let table = self.table.read(cx);
@@ -1025,6 +1041,7 @@ impl FilePane {
             can_modify: self.takes_commands() && !self.busy,
             can_transfer: self.transfer_enabled,
             show_hidden: ShowHiddenFiles::get(self.side, cx),
+            folders_first: FoldersFirst::get(self.side, cx),
         }
     }
 }
@@ -1082,6 +1099,11 @@ impl Render for FilePane {
             t!("explorer.toolbar.hide_hidden_files")
         } else {
             t!("explorer.command.show_hidden_files")
+        };
+        let folders_first_tip = if state.folders_first {
+            t!("explorer.toolbar.mix_folders")
+        } else {
+            t!("explorer.command.folders_first")
         };
         let navigation = toolbar()
             // `Select` fills its parent (`size_full`), so it needs a sized
@@ -1200,6 +1222,30 @@ impl Render for FilePane {
                             });
                         }
                     }),
+            )
+            // As the eye: the icon is how things are, folders together
+            // while they go first; the tooltip is what a click does.
+            .child(
+                Button::new("folders-first")
+                    .ghost()
+                    .small()
+                    .icon(Icon::new(if state.folders_first {
+                        CatalogIcon::Folders
+                    } else {
+                        CatalogIcon::Files
+                    }))
+                    .accessibility_label(folders_first_tip.clone())
+                    .tooltip(folders_first_tip)
+                    .on_click({
+                        let dispatch = self.dispatch.clone();
+                        let side = self.side;
+                        move |_, window, cx| {
+                            let dispatch = dispatch.clone();
+                            window.defer(cx, move |window, cx| {
+                                dispatch.dispatch_action(&ToggleFoldersFirst(side), window, cx)
+                            });
+                        }
+                    }),
             );
         let transfer_shortcut = ExplorerShortcut(ExplorerCommand::Transfer { remote });
         let (id, icon, label, tip) = if remote {
@@ -1292,11 +1338,31 @@ impl Render for FilePane {
             });
         let pane = cx.entity().downgrade();
         let menu_hit = self.menu_hit.clone();
+        // The mouse's side buttons go back and forward, as in a browser and
+        // WinSCP, anywhere on the pane.
+        let navigate = |command: ExplorerCommand| {
+            let dispatch = self.dispatch.clone();
+            move |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
+                dispatch.dispatch_explorer_action(
+                    &ExplorerAction::new(sid, command.clone()),
+                    window,
+                    cx,
+                );
+            }
+        };
         v_flex()
             .id((self.side.pane_id(), sid.0))
             .test_support()
             .size_full()
             .min_w_0()
+            .on_mouse_down(
+                MouseButton::Navigate(NavigationDirection::Back),
+                navigate(ExplorerCommand::Back { remote }),
+            )
+            .on_mouse_down(
+                MouseButton::Navigate(NavigationDirection::Forward),
+                navigate(ExplorerCommand::Forward { remote }),
+            )
             .child(frame(navigation))
             .child(frame(operations))
             .child(self.render_path_label(window, cx))

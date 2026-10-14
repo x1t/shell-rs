@@ -1,7 +1,7 @@
 use gpui_kit::component::{ActiveTheme as _, Theme, ThemeMode};
 use gpui_kit::*;
 
-use crate::explorer::{FileSizeFormat, ShowHiddenFiles};
+use crate::explorer::{FileSizeFormat, FoldersFirst, ShowHiddenFiles};
 use crate::i18n::UiLocale;
 use crate::terminal::{
     TerminalColors, TerminalFont, TerminalHighlights, TerminalInteraction, is_font_installed,
@@ -96,5 +96,8 @@ pub fn apply(settings: AppSettings, window: &mut Window, cx: &mut App) {
     // The SFTP lists observe it and list their rows again.
     if cx.try_global::<ShowHiddenFiles>() != Some(&settings.show_hidden) {
         cx.set_global(settings.show_hidden);
+    }
+    if cx.try_global::<FoldersFirst>() != Some(&settings.folders_first) {
+        cx.set_global(settings.folders_first);
     }
 }

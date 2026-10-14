@@ -3,7 +3,7 @@ use gpui_kit::{SharedString, WindowAppearance};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::app::ShortcutOverrides;
-use crate::explorer::{FileSizeFormat, ShowHiddenFiles};
+use crate::explorer::{FileSizeFormat, FoldersFirst, ShowHiddenFiles};
 use crate::i18n::t;
 use crate::terminal::{
     DEFAULT_FONT_SIZE, DEFAULT_LINE_HEIGHT, FONT_SIZE_RANGE, HighlightRule, LINE_HEIGHT_RANGE,
@@ -34,6 +34,9 @@ pub struct AppSettings {
     /// 显示隐藏文件 in the SFTP lists, each side on its own, switched from
     /// their toolbars and menus.
     pub show_hidden: ShowHiddenFiles,
+    /// 文件夹排在前面 in the SFTP lists, each side on its own, switched from
+    /// their toolbars and menus.
+    pub folders_first: FoldersFirst,
     /// 撰写 under the center area.
     pub compose: ComposeSettings,
     /// 终端 → 通知.
@@ -498,6 +501,13 @@ mod tests {
             serde_json::from_str(r#"{"show_hidden":{"remote":true}}"#).unwrap();
         assert!(settings.show_hidden.remote);
         assert!(!settings.show_hidden.local);
+        // Folders come first unless the file says otherwise.
+        assert!(AppSettings::default().folders_first.local);
+        assert!(AppSettings::default().folders_first.remote);
+        let settings: AppSettings =
+            serde_json::from_str(r#"{"folders_first":{"remote":false}}"#).unwrap();
+        assert!(!settings.folders_first.remote);
+        assert!(settings.folders_first.local);
     }
 
     #[test]

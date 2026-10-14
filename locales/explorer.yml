@@ -155,6 +155,12 @@ explorer.command.show_hidden_files:
 explorer.toolbar.hide_hidden_files:
   zh-CN: 不显示隐藏文件
   en: Hide hidden files
+explorer.command.folders_first:
+  zh-CN: 文件夹排在前面
+  en: Folders first
+explorer.toolbar.mix_folders:
+  zh-CN: 文件夹和文件一起排序
+  en: Sort folders with files
 explorer.command.upload:
   zh-CN: 上传…
   en: Upload…

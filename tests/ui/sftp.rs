@@ -487,6 +487,62 @@ async fn click_remote_tool(
     .await;
 }
 
+/// Press a mouse side button on an element of the remote pane and wait for
+/// the path it lands on.
+async fn press_side_button(
+    cx: &mut TestAppContext,
+    handle: WindowHandle<Root>,
+    on: impl Into<gpui_kit::ElementId>,
+    direction: gpui_kit::NavigationDirection,
+    expected: &str,
+) {
+    use gpui_kit::{MouseDownEvent, PlatformInput};
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.render_frame(cx);
+        let position = window
+            .within(("remote-pane", SFTP_TAB))
+            .find(on)
+            .bounds()
+            .center();
+        window.dispatch_event(
+            PlatformInput::MouseDown(MouseDownEvent {
+                button: MouseButton::Navigate(direction),
+                position,
+                modifiers: Default::default(),
+                click_count: 1,
+                first_mouse: false,
+            }),
+            cx,
+        );
+    })
+    .unwrap();
+    cx.wait_for(handle.into(), Duration::from_secs(2), |window, cx| {
+        window.render_frame(cx);
+        window.find("remote-path").value() == Some(expected)
+    })
+    .await;
+}
+
+/// The mouse's side buttons go back and forward, on the list or anywhere
+/// else on the pane.
+#[gpui_kit::test]
+async fn sftp_mouse_side_buttons_go_back_and_forward(cx: &mut TestAppContext) {
+    use gpui_kit::NavigationDirection;
+    let provider = Arc::new(FakeSftpProvider::default());
+    let (handle, _) = open_workspace_with_sftp(cx, provider);
+    open_test_explorer(cx, handle).await;
+    click_remote_tool(cx, handle, "up", "/home").await;
+    press_side_button(
+        cx,
+        handle,
+        "file:..",
+        NavigationDirection::Back,
+        "/home/tester",
+    )
+    .await;
+    press_side_button(cx, handle, "refresh", NavigationDirection::Forward, "/home").await;
+}
+
 #[gpui_kit::test]
 async fn sftp_toolbar_goes_up_root_home_back_and_forward(cx: &mut TestAppContext) {
     use shellrs::app::{ExplorerAction, ExplorerCommand};
@@ -1612,6 +1668,91 @@ async fn sftp_clicking_a_column_title_sorts_by_it(cx: &mut TestAppContext) {
     );
     click_size(cx);
     assert_eq!(names(cx), by_name);
+}
+
+/// 文件夹排在前面: on until turned off, for each side on its own; off, the
+/// folders are sorted in among the files, `..` still first.
+#[gpui_kit::test]
+async fn sftp_folders_first_is_switched_from_the_toolbar(cx: &mut TestAppContext) {
+    use shellrs::explorer::FoldersFirst;
+    let provider = Arc::new(FakeSftpProvider::default());
+    let (handle, workspace) = open_workspace_with_sftp(cx, provider);
+    open_test_explorer(cx, handle).await;
+    let names = |cx: &mut TestAppContext| {
+        cx.run_until_parked();
+        cx.update(|cx| {
+            let explorer = workspace.read(cx).explorer(ExplorerId(SFTP_TAB)).unwrap();
+            let entries = explorer.read(cx).local().read(cx).entries(cx);
+            entries
+                .into_iter()
+                .map(|entry| entry.name.to_string())
+                .collect::<Vec<_>>()
+        })
+    };
+    let saved = |cx: &mut TestAppContext| {
+        cx.update(|cx| {
+            workspace
+                .read(cx)
+                .settings()
+                .read(cx)
+                .settings()
+                .folders_first
+        })
+    };
+    let first = |local, remote| FoldersFirst { local, remote };
+    // The button's label is what a click does.
+    let button = |window: &mut gpui_kit::Window, pane: &'static str| {
+        window
+            .within((pane, SFTP_TAB))
+            .find("folders-first")
+            .label()
+            .map(str::to_string)
+    };
+    let click = |cx: &mut TestAppContext| {
+        cx.update_window(handle.into(), |_, window, cx| {
+            window.render_frame(cx);
+            window
+                .within(("local-pane", SFTP_TAB))
+                .click("folders-first", cx);
+        })
+        .unwrap();
+    };
+
+    let folders_first = ["..", "目录", "链接目录", "文件 乙.txt", "文件 甲.txt"];
+    assert_eq!(saved(cx), first(true, true), "on until turned off");
+    assert_eq!(names(cx), folders_first);
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.render_frame(cx);
+        assert_eq!(
+            button(window, "local-pane").as_deref(),
+            Some("文件夹和文件一起排序")
+        );
+    })
+    .unwrap();
+
+    click(cx);
+    // The other side keeps its own.
+    assert_eq!(saved(cx), first(false, true));
+    assert_eq!(
+        names(cx),
+        ["..", "文件 乙.txt", "文件 甲.txt", "目录", "链接目录"]
+    );
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.render_frame(cx);
+        assert_eq!(
+            button(window, "local-pane").as_deref(),
+            Some("文件夹排在前面")
+        );
+        assert_eq!(
+            button(window, "remote-pane").as_deref(),
+            Some("文件夹和文件一起排序")
+        );
+    })
+    .unwrap();
+
+    click(cx);
+    assert_eq!(saved(cx), first(true, true));
+    assert_eq!(names(cx), folders_first);
 }
 
 /// A column dragged wider stays so with the next listing, which gives the

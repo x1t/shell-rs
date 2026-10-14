@@ -245,6 +245,9 @@ id_actions! {
     /// Show the dot files of one side of the SFTP tabs, or stop showing
     /// them: that side of every tab, kept in the settings.
     ToggleHiddenFiles(PaneSide);
+    /// Keep the folders of one side of the SFTP tabs ahead of the files, or
+    /// sort them in among them: that side of every tab, kept in the settings.
+    ToggleFoldersFirst(PaneSide);
     /// Show the tab at a position, from 1, in the current tab's group; 9 is
     /// the last, as in browsers.
     SwitchToTab(usize);

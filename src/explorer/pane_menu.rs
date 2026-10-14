@@ -4,7 +4,8 @@
 
 use super::{ExplorerId, ExternalEditor, FileSizeFormat, NewEntryKind, PaneSide, PreviewKind};
 use crate::app::{
-    CatalogIcon, ExplorerAction, ExplorerCommand, SetFileSizeFormat, ToggleHiddenFiles,
+    CatalogIcon, ExplorerAction, ExplorerCommand, SetFileSizeFormat, ToggleFoldersFirst,
+    ToggleHiddenFiles,
 };
 use crate::i18n::t;
 use gpui_kit::component::{Icon, IconName, menu::PopupMenu};
@@ -36,6 +37,8 @@ pub(super) struct PaneMenuState {
     pub can_transfer: bool,
     /// 显示隐藏文件 is on for this side.
     pub show_hidden: bool,
+    /// 文件夹排在前面 is on for this side.
+    pub folders_first: bool,
 }
 
 impl PaneMenuState {
@@ -145,6 +148,11 @@ pub(super) fn directory_menu(
             t!("explorer.command.show_hidden_files"),
             state.show_hidden,
             Box::new(ToggleHiddenFiles(PaneSide::from_remote(state.remote))),
+        )
+        .menu_with_check(
+            t!("explorer.command.folders_first"),
+            state.folders_first,
+            Box::new(ToggleFoldersFirst(PaneSide::from_remote(state.remote))),
         )
         .separator();
     add_bookmark_item(menu, state).separator().submenu(
