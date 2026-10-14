@@ -53,6 +53,72 @@ fn tab_close_button_closes_the_terminal_and_disconnects(cx: &mut TestAppContext)
     });
 }
 
+/// 所有标签 ends the tab bar of a center group of more than one tab, for the
+/// tabs scrolled off its ends; the sidebars, of one panel, go without.
+#[gpui_kit::test]
+fn a_group_of_several_tabs_lists_them_at_the_end_of_its_bar(cx: &mut TestAppContext) {
+    let (handle, _) = open_workspace(cx);
+    let listed = |cx: &mut TestAppContext| {
+        cx.update_window(handle.into(), |_, window, cx| {
+            window.render_frame(cx);
+            window.try_find("all-tabs").is_some()
+        })
+        .unwrap()
+    };
+    // web-01's and staging-api's terminals share the center.
+    assert!(listed(cx));
+
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.render_frame(cx);
+        window.click(("close-terminal", INITIAL_STAGING_TERMINAL), cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    assert!(!listed(cx));
+}
+
+/// A middle click on a tab closes it, as in browsers.
+#[gpui_kit::test]
+fn a_middle_click_closes_the_tab(cx: &mut TestAppContext) {
+    use gpui_kit::{MouseDownEvent, MouseUpEvent, PlatformInput};
+    let (handle, _) = open_workspace(cx);
+    let tab = ("terminal-tab", INITIAL_STAGING_TERMINAL);
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.render_frame(cx);
+        let position = window.find(tab).bounds().center();
+        for input in [
+            PlatformInput::MouseDown(MouseDownEvent {
+                button: MouseButton::Middle,
+                position,
+                modifiers: Default::default(),
+                click_count: 1,
+                first_mouse: false,
+            }),
+            PlatformInput::MouseUp(MouseUpEvent {
+                button: MouseButton::Middle,
+                position,
+                modifiers: Default::default(),
+                click_count: 1,
+            }),
+        ] {
+            window.dispatch_event(input, cx);
+        }
+    })
+    .unwrap();
+    cx.run_until_parked();
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.render_frame(cx);
+        assert!(window.try_find(tab).is_none());
+        // The other tab stays.
+        assert!(
+            window
+                .find(("terminal-tab", INITIAL_WEB_TERMINAL))
+                .visible()
+        );
+    })
+    .unwrap();
+}
+
 #[gpui_kit::test]
 async fn closing_every_tab_shows_the_recent_hosts(cx: &mut TestAppContext) {
     let (handle, workspace) = open_workspace(cx);

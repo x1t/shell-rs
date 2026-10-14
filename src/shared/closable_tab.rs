@@ -134,6 +134,8 @@ impl RenderOnce for ClosableTabTitle {
             }
             None => self.leading,
         };
+        // A middle click closes the tab, as in browsers.
+        let middle_close = self.close.as_ref().map(|(_, action)| action.boxed_clone());
         let row = h_flex()
             .id("title")
             .gap_1()
@@ -171,6 +173,12 @@ impl RenderOnce for ClosableTabTitle {
                 if event.click_count() == 2 {
                     window.dispatch_action(Box::new(ToggleHostPanel), cx);
                 }
+            })
+            .when_some(middle_close, |title, action| {
+                title.on_mouse_up(MouseButton::Middle, move |_, window, cx| {
+                    cx.stop_propagation();
+                    window.dispatch_action(action.boxed_clone(), cx);
+                })
             })
             .test_support()
             .aria_label(self.label)
