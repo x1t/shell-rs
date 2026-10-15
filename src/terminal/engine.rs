@@ -903,9 +903,11 @@ impl TerminalRuntime {
 fn terminal_config() -> Config {
     Config {
         scrolling_history: 10_000,
+        // Steady block by default, like Xshell: a blinking cursor is
+        // distracting. Programs that ask for one (DECSCUSR) still get it.
         default_cursor_style: CursorStyle {
             shape: CursorShape::Block,
-            blinking: true,
+            blinking: false,
         },
         // Programs may copy to the clipboard (vim, tmux), never read it.
         osc52: Osc52::OnlyCopy,
@@ -1498,10 +1500,10 @@ mod tests {
     }
 
     #[test]
-    fn default_cursor_is_a_blinking_block() {
+    fn default_cursor_is_a_steady_block() {
         let term = test_term(8, 2);
         assert_eq!(term.cursor_style().shape, CursorShape::Block);
-        assert!(term.cursor_style().blinking);
+        assert!(!term.cursor_style().blinking);
     }
 
     #[test]
